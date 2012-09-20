@@ -62,6 +62,12 @@
 
 @interface RNCachingURLProtocol : NSURLProtocol
 
++ (NSMutableDictionary *)expireTime;
+
++ (NSMutableArray *)excludeHostPatterns;
+
++ (void)removeCache;
+
 - (NSString *)cachePathForRequest:(NSURLRequest *)aRequest;
 - (BOOL) useCache;
 
