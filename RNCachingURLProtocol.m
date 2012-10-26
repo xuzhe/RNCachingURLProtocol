@@ -50,6 +50,7 @@
 @end
 
 static NSString *RNCachingURLHeader = @"X-RNCache";
+static NSString *RNCachingPlistFile = @"RNCache.plist";
 
 @interface RNCachingURLProtocol () // <NSURLConnectionDelegate, NSURLConnectionDataDelegate> iOS5-only
 @property(nonatomic, readwrite, strong) NSURLConnection *connection;
@@ -61,18 +62,33 @@ static NSString *RNCachingURLHeader = @"X-RNCache";
 
 static NSMutableDictionary *_expireTime = nil;
 static NSMutableArray *_excludeHosts = nil;
+static NSMutableDictionary *_cacheDictionary = nil;
 
 @implementation RNCachingURLProtocol
 @synthesize connection = connection_;
 @synthesize data = data_;
 @synthesize response = response_;
 
++ (NSMutableDictionary *)cacheDictionary {
+    if (_cacheDictionary == nil) {
+        NSDictionary* dict = [NSDictionary dictionaryWithContentsOfFile:[self cachePathForKey:RNCachingPlistFile]];
+
+        if (dict) {
+            _cacheDictionary = [dict mutableCopy];
+        } else {
+            _cacheDictionary = [[NSMutableDictionary alloc] init];
+        }
+    }
+    return _cacheDictionary;
+}
+
 + (NSMutableDictionary *)expireTime {
     if (_expireTime == nil) {
         _expireTime = [NSMutableDictionary dictionary];
-        [_expireTime setObject:@(60 * 60 * 24 * 2) forKey:@"image/jpeg"]; // 48 hour
-        [_expireTime setObject:@(60 * 60 * 24 * 2) forKey:@"image/jpg"]; // 48 hour
-        [_expireTime setObject:@(60 * 60 * 24 * 2) forKey:@"image/png"]; // 48 hour
+        [_expireTime setObject:@(60 * 30) forKey:@"application/json"]; // 30 min
+        [_expireTime setObject:@(60 * 30) forKey:@"text/html"]; // 30 min
+        [_expireTime setObject:@(60 * 60 * 24 * 30) forKey:@"image/jpeg"]; // 30 day
+        [_expireTime setObject:@(60 * 60 * 24 * 30) forKey:@"image/png"]; // 30 day
     }
     return _expireTime;
 }
@@ -102,14 +118,47 @@ static NSMutableArray *_excludeHosts = nil;
     NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
     NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:@"RNCaching"];
     [[NSFileManager defaultManager] removeItemAtPath:offlineCachePath error:nil];
+    _cacheDictionary = nil;
 }
 
-- (NSString *)cachePathForRequest:(NSURLRequest *)aRequest {
-    // This stores in the Caches directory, which can be deleted when space is low, but we only use it for offline access
++ (void)removeCacheOlderThan:(NSDate *)date {
+    NSSet *keysToDelete = [[self cacheDictionary] keysOfEntriesPassingTest:^BOOL(id key, id obj, BOOL *stop) {
+        NSDate *d = [(NSArray *)obj objectAtIndex:0];
+        return [d compare:date] == NSOrderedAscending;
+    }];
+    [[self cacheDictionary] removeObjectsForKeys:[keysToDelete allObjects]];
+    [self saveCacheDictionary];
+    for (NSString *key in keysToDelete) {
+        [[NSFileManager defaultManager] removeItemAtPath:key error:nil];
+    }
+}
+
++ (void)saveCacheDictionary {
+    static dispatch_queue_t queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        queue = dispatch_queue_create("com.mm.iweekly.cacheQueue", NULL);
+    });
+    NSDictionary *dict = [_cacheDictionary copy];
+    dispatch_async(queue, ^{
+        [dict writeToFile:[self cachePathForKey:RNCachingPlistFile] atomically:YES];
+    });
+}
+
+- (void)saveAfterDelay {
+    [NSObject cancelPreviousPerformRequestsWithTarget:[self class] selector:@selector(saveCacheDictionary) object:nil];
+    [[self class] performSelector:@selector(saveCacheDictionary) withObject:nil afterDelay:0.3];
+}
+
++ (NSString *)cachePathForKey:(NSString *)key {
     NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
     NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:@"RNCaching"];
     [[NSFileManager defaultManager] createDirectoryAtPath:offlineCachePath withIntermediateDirectories:YES attributes:nil error:nil];
-    return [offlineCachePath stringByAppendingPathComponent:[NSString stringWithFormat:@"%x", [[[aRequest URL] absoluteString] hash]]];
+    return [offlineCachePath stringByAppendingPathComponent:key];
+}
+
+- (NSString *)cachePathForRequest:(NSURLRequest *)aRequest {
+    return [[self class] cachePathForKey:[NSString stringWithFormat:@"%x", [[[aRequest URL] absoluteString] hash]]];
 }
 
 - (void)startLoading {
@@ -206,11 +255,10 @@ static NSMutableArray *_excludeHosts = nil;
     RNCachedData *cache = [RNCachedData new];
     [cache setResponse:[self response]];
     [cache setData:[self data]];
-    [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
+    [[[self class] cacheDictionary] setObject:@[[NSDate date], [self response].MIMEType] forKey:cachePath];
+    [self performSelectorOnMainThread:@selector(saveAfterDelay) withObject:nil waitUntilDone:YES];
 
-#if !(defined RNCACHING_DISABLE_LOGGING)
-    NSLog(@"Caching URL [%@]", self.request.URL.absoluteString);
-#endif
+    [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
 
     [self setConnection:nil];
     [self setData:nil];
@@ -220,14 +268,8 @@ static NSMutableArray *_excludeHosts = nil;
 - (BOOL)useCache {
     BOOL reachable = (BOOL) [[Reachability reachabilityWithHostName:[[[self request] URL] host]] currentReachabilityStatus] != NotReachable;
     if (!reachable) {
-#if !(defined RNCACHING_DISABLE_LOGGING)
-        NSLog(@"Offline: Use cache [%@]", self.request.URL.absoluteString);
-#endif
         return YES;
-    } else if ([self isHostExcluded]) {
-#if !(defined RNCACHING_DISABLE_LOGGING)
-        NSLog(@"No cache for excluded URL [%@]", self.request.URL.absoluteString);
-#endif
+    } else if ([self isHostExcluded]){
         return NO;
     } else {
         return ![self isCacheExpired];
@@ -237,7 +279,7 @@ static NSMutableArray *_excludeHosts = nil;
 - (BOOL)isHostExcluded {
     NSString *string = [[[self request] URL] absoluteString];
 
-    NSError *error = NULL;
+    NSError  *error  = NULL;
     for (NSString *pattern in _excludeHosts) {
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
         NSTextCheckingResult *result = [regex firstMatchInString:string options:NSMatchingAnchored range:NSMakeRange(0, string.length)];
@@ -250,31 +292,29 @@ static NSMutableArray *_excludeHosts = nil;
     return NO;
 }
 
-- (BOOL)isCacheExpired {
-    RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:[self cachePathForRequest:[self request]]];
-    if (cache == nil) return YES;
+- (NSArray *)cacheMeta {
+    return [[[self class] cacheDictionary] objectForKey:[self cachePathForRequest:[self request]]];
+}
 
-    NSDate *modifiedDate = cache.lastModifiedDate;
-    NSString *mimeType = cache.mimeType;
+- (BOOL)isCacheExpired {
+    NSArray *meta = [self cacheMeta];
+    if (meta == nil) {
+        return YES;
+    }
+
+    NSDate *modifiedDate = [meta objectAtIndex:0];
+    NSString *mimeType = [meta objectAtIndex:1];
 
     BOOL expired = YES;
 
     NSNumber *time = [[RNCachingURLProtocol expireTime] valueForKey:mimeType];
-    if (!time) time = @(60 * 30); // default caching time is 30 minutes
+    if (time) {
+        NSTimeInterval delta = [[NSDate date] timeIntervalSinceDate:modifiedDate];
 
-    NSDate *now = [NSDate new];
-    NSTimeInterval delta = [now timeIntervalSinceDate:modifiedDate];
-
-    expired = (delta > [time intValue]);
-
-#if !(defined RNCACHING_DISABLE_LOGGING)
-    if (expired) {
-        NSLog(@"URL Expired [%@]", self.request.URL.absoluteString);
-    } else {
-        NSLog(@"Use cache [%@]", self.request.URL.absoluteString);
+        expired = (delta > [time intValue]);
     }
-#endif
 
+    NSLog(@"------- cache %@: %@", expired ? @"expired" : @"hit", [[[self request] URL] absoluteString]);
     return expired;
 }
 
