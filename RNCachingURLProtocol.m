@@ -334,7 +334,11 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
     NSMutableURLRequest *mutableURLRequest = [[NSMutableURLRequest alloc] initWithURL:[self URL]
                                                                           cachePolicy:[self cachePolicy]
                                                                       timeoutInterval:[self timeoutInterval]];
+    [mutableURLRequest setHTTPMethod:[self HTTPMethod]];
     [mutableURLRequest setAllHTTPHeaderFields:[self allHTTPHeaderFields]];
+    [mutableURLRequest setHTTPBody:[self HTTPBody]];
+    [mutableURLRequest setHTTPShouldHandleCookies:[self HTTPShouldHandleCookies]];
+    [mutableURLRequest setHTTPShouldUsePipelining:[self HTTPShouldUsePipelining]];
     return mutableURLRequest;
 }
 
