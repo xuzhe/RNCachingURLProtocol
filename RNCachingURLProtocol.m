@@ -88,6 +88,7 @@ static NSMutableDictionary *_cacheDictionary = nil;
         [_expireTime setObject:@(60 * 30) forKey:@"application/json"]; // 30 min
         [_expireTime setObject:@(60 * 30) forKey:@"text/html"]; // 30 min
         [_expireTime setObject:@(60 * 60 * 24 * 30) forKey:@"image/jpeg"]; // 30 day
+        [_expireTime setObject:@(60 * 60 * 24 * 30) forKey:@"image/jpg"]; // 30 day
         [_expireTime setObject:@(60 * 60 * 24 * 30) forKey:@"image/png"]; // 30 day
     }
     return _expireTime;
