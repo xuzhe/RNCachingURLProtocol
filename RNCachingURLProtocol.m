@@ -266,11 +266,12 @@ static NSMutableDictionary *_cacheDictionary = nil;
 }
 
 - (BOOL)useCache {
+    if ([self isHostExcluded] || ![[[self request] HTTPMethod] isEqualToString:@"GET"]){
+        return NO;
+    }
     BOOL reachable = (BOOL) [[Reachability reachabilityWithHostName:[[[self request] URL] host]] currentReachabilityStatus] != NotReachable;
     if (!reachable) {
         return YES;
-    } else if ([self isHostExcluded]){
-        return NO;
     } else {
         return ![self isCacheExpired];
     }
