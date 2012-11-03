@@ -67,6 +67,7 @@
 + (NSMutableArray *)excludeHostPatterns;
 
 + (void)removeCache;
++ (void)removeCacheOlderThan:(NSDate *)date;
 
 - (NSString *)cachePathForRequest:(NSURLRequest *)aRequest;
 - (BOOL) useCache;
