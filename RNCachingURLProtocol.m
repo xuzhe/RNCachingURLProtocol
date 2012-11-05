@@ -138,7 +138,7 @@ static NSMutableDictionary *_cacheDictionary = nil;
     static dispatch_queue_t queue;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        queue = dispatch_queue_create("com.mm.iweekly.cacheQueue", NULL);
+        queue = dispatch_queue_create("cache.savelist.queue", NULL);
     });
     NSDictionary *dict = [[self cacheDictionary] copy];
     dispatch_async(queue, ^{
