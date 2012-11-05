@@ -74,7 +74,7 @@ static NSMutableDictionary *_cacheDictionary = nil;
         NSDictionary* dict = [NSDictionary dictionaryWithContentsOfFile:[self cachePathForKey:RNCachingPlistFile]];
 
         if (dict) {
-            _cacheDictionary = [dict mutableCopy];
+            _cacheDictionary = [[NSMutableDictionary alloc] initWithDictionary:dict];
         } else {
             _cacheDictionary = [[NSMutableDictionary alloc] init];
         }
@@ -140,9 +140,10 @@ static NSMutableDictionary *_cacheDictionary = nil;
     dispatch_once(&onceToken, ^{
         queue = dispatch_queue_create("com.mm.iweekly.cacheQueue", NULL);
     });
-    NSDictionary *dict = [_cacheDictionary copy];
+    NSDictionary *dict = [[self cacheDictionary] copy];
     dispatch_async(queue, ^{
-        [dict writeToFile:[self cachePathForKey:RNCachingPlistFile] atomically:YES];
+        NSString *path = [NSString stringWithString:[self cachePathForKey:RNCachingPlistFile]];
+        [dict writeToFile:path atomically:YES];
     });
 }
 
