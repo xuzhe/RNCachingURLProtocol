@@ -70,16 +70,18 @@ static NSMutableDictionary *_cacheDictionary = nil;
 @synthesize response = response_;
 
 + (NSMutableDictionary *)cacheDictionary {
-    if (_cacheDictionary == nil) {
-        NSDictionary* dict = [NSDictionary dictionaryWithContentsOfFile:[self cachePathForKey:RNCachingPlistFile]];
+    @synchronized(self) {
+        if (_cacheDictionary == nil) {
+            NSDictionary* dict = [NSDictionary dictionaryWithContentsOfFile:[self cachePathForKey:RNCachingPlistFile]];
 
-        if (dict) {
-            _cacheDictionary = [[NSMutableDictionary alloc] initWithDictionary:dict];
-        } else {
-            _cacheDictionary = [[NSMutableDictionary alloc] init];
+            if (dict) {
+                _cacheDictionary = [[NSMutableDictionary alloc] initWithDictionary:dict];
+            } else {
+                _cacheDictionary = [[NSMutableDictionary alloc] init];
+            }
         }
+        return _cacheDictionary;
     }
-    return _cacheDictionary;
 }
 
 + (NSMutableDictionary *)expireTime {
@@ -119,7 +121,9 @@ static NSMutableDictionary *_cacheDictionary = nil;
     NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
     NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:@"RNCaching"];
     [[NSFileManager defaultManager] removeItemAtPath:offlineCachePath error:nil];
-    _cacheDictionary = nil;
+    @synchronized(self) {
+        _cacheDictionary = nil;
+    }
 }
 
 + (void)removeCacheOlderThan:(NSDate *)date {
@@ -140,10 +144,9 @@ static NSMutableDictionary *_cacheDictionary = nil;
     dispatch_once(&onceToken, ^{
         queue = dispatch_queue_create("cache.savelist.queue", NULL);
     });
-    NSDictionary *dict = [[self cacheDictionary] copy];
     dispatch_async(queue, ^{
         NSString *path = [NSString stringWithString:[self cachePathForKey:RNCachingPlistFile]];
-        [dict writeToFile:path atomically:YES];
+        [[self cacheDictionary] writeToFile:path atomically:YES];
     });
 }
 
