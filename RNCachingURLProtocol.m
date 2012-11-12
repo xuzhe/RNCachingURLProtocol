@@ -144,10 +144,7 @@ static NSMutableDictionary *_cacheDictionary = nil;
     dispatch_once(&onceToken, ^{
         queue = dispatch_queue_create("cache.savelist.queue", NULL);
     });
-    __block NSDictionary *dict = nil;
-    dispatch_sync(dispatch_get_main_queue(), ^{
-        dict = [[self cacheDictionary] copy];
-    });
+    NSDictionary *dict = [[self cacheDictionary] copy];
     dispatch_async(queue, ^{
         NSString *path = [NSString stringWithString:[self cachePathForKey:RNCachingPlistFile]];
         [dict writeToFile:path atomically:YES];
