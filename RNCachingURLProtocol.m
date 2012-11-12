@@ -52,6 +52,14 @@
 static NSString *RNCachingURLHeader = @"X-RNCache";
 static NSString *RNCachingPlistFile = @"RNCache.plist";
 
+@interface RNCacheListStore : NSObject
+- (id)initWithPath:(NSString *)path;
+- (void)setObject:(id)object forKey:(id)aKey;
+- (id)objectForKey:(id)aKey;
+- (NSArray *)removeObjectsOlderThan:(NSDate *)date;
+- (void)clear;
+@end
+
 @interface RNCachingURLProtocol () // <NSURLConnectionDelegate, NSURLConnectionDataDelegate> iOS5-only
 @property(nonatomic, readwrite, strong) NSURLConnection *connection;
 @property(nonatomic, readwrite, strong) NSMutableData *data;
@@ -62,25 +70,19 @@ static NSString *RNCachingPlistFile = @"RNCache.plist";
 
 static NSMutableDictionary *_expireTime = nil;
 static NSMutableArray *_excludeHosts = nil;
-static NSMutableDictionary *_cacheDictionary = nil;
+static RNCacheListStore *_cacheListStore = nil;
 
 @implementation RNCachingURLProtocol
 @synthesize connection = connection_;
 @synthesize data = data_;
 @synthesize response = response_;
 
-+ (NSMutableDictionary *)cacheDictionary {
++ (RNCacheListStore *)cacheListStore {
     @synchronized(self) {
-        if (_cacheDictionary == nil) {
-            NSDictionary* dict = [NSDictionary dictionaryWithContentsOfFile:[self cachePathForKey:RNCachingPlistFile]];
-
-            if (dict) {
-                _cacheDictionary = [[NSMutableDictionary alloc] initWithDictionary:dict];
-            } else {
-                _cacheDictionary = [[NSMutableDictionary alloc] init];
-            }
+        if (_cacheListStore == nil) {
+            _cacheListStore = [[RNCacheListStore alloc] initWithPath:[self cachePathForKey:RNCachingPlistFile]];
         }
-        return _cacheDictionary;
+        return _cacheListStore;
     }
 }
 
@@ -118,42 +120,17 @@ static NSMutableDictionary *_cacheDictionary = nil;
 }
 
 + (void)removeCache {
+    [[self cacheListStore] clear];
     NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
     NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:@"RNCaching"];
     [[NSFileManager defaultManager] removeItemAtPath:offlineCachePath error:nil];
-    @synchronized(self) {
-        _cacheDictionary = nil;
-    }
 }
 
 + (void)removeCacheOlderThan:(NSDate *)date {
-    NSSet *keysToDelete = [[self cacheDictionary] keysOfEntriesPassingTest:^BOOL(id key, id obj, BOOL *stop) {
-        NSDate *d = [(NSArray *)obj objectAtIndex:0];
-        return [d compare:date] == NSOrderedAscending;
-    }];
-    [[self cacheDictionary] removeObjectsForKeys:[keysToDelete allObjects]];
-    [self saveCacheDictionary];
+    NSArray *keysToDelete = [[self cacheListStore] removeObjectsOlderThan:date];
     for (NSString *key in keysToDelete) {
         [[NSFileManager defaultManager] removeItemAtPath:key error:nil];
     }
-}
-
-+ (void)saveCacheDictionary {
-    static dispatch_queue_t queue;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        queue = dispatch_queue_create("cache.savelist.queue", NULL);
-    });
-    NSDictionary *dict = [[self cacheDictionary] copy];
-    dispatch_async(queue, ^{
-        NSString *path = [NSString stringWithString:[self cachePathForKey:RNCachingPlistFile]];
-        [dict writeToFile:path atomically:YES];
-    });
-}
-
-- (void)saveAfterDelay {
-    [NSObject cancelPreviousPerformRequestsWithTarget:[self class] selector:@selector(saveCacheDictionary) object:nil];
-    [[self class] performSelector:@selector(saveCacheDictionary) withObject:nil afterDelay:0.3];
 }
 
 + (NSString *)cachePathForKey:(NSString *)key {
@@ -261,8 +238,7 @@ static NSMutableDictionary *_cacheDictionary = nil;
     RNCachedData *cache = [RNCachedData new];
     [cache setResponse:[self response]];
     [cache setData:[self data]];
-    [[[self class] cacheDictionary] setObject:@[[NSDate date], [self response].MIMEType] forKey:cachePath];
-    [self performSelectorOnMainThread:@selector(saveAfterDelay) withObject:nil waitUntilDone:YES];
+    [[[self class] cacheListStore] setObject:@[[NSDate date], [self response].MIMEType] forKey:cachePath];
 
     [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
 
@@ -291,7 +267,7 @@ static NSMutableDictionary *_cacheDictionary = nil;
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
         NSTextCheckingResult *result = [regex firstMatchInString:string options:NSMatchingAnchored range:NSMakeRange(0, string.length)];
         if (result.numberOfRanges) {
-            NSLog(@"%@ excluded", string);
+            NSLog(@"[RNCachingURLProtocol] %@ excluded", string);
             return YES;
         }
     }
@@ -300,7 +276,7 @@ static NSMutableDictionary *_cacheDictionary = nil;
 }
 
 - (NSArray *)cacheMeta {
-    return [[[self class] cacheDictionary] objectForKey:[self cachePathForRequest:[self request]]];
+    return [[[self class] cacheListStore] objectForKey:[self cachePathForRequest:[self request]]];
 }
 
 - (BOOL)isCacheExpired {
@@ -321,7 +297,7 @@ static NSMutableDictionary *_cacheDictionary = nil;
         expired = (delta > [time intValue]);
     }
 
-    NSLog(@"------- cache %@: %@", expired ? @"expired" : @"hit", [[[self request] URL] absoluteString]);
+    NSLog(@"[RNCachingURLProtocol] %@: %@", expired ? @"expired" : @"hit", [[[self request] URL] absoluteString]);
     return expired;
 }
 
@@ -392,3 +368,82 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 @end
 
 #endif
+
+#pragma mark - RNCacheListStore
+@implementation RNCacheListStore {
+    NSMutableDictionary *_dict;
+    NSString *_path;
+    dispatch_queue_t _queue;
+}
+
+- (id)initWithPath:(NSString *)path {
+    if (self = [super init]) {
+        _path = [path copy];
+
+        NSDictionary* dict = [NSDictionary dictionaryWithContentsOfFile:_path];
+        if (dict) {
+            _dict = [[NSMutableDictionary alloc] initWithDictionary:dict];
+        } else {
+            _dict = [[NSMutableDictionary alloc] init];
+        }
+
+        _queue = dispatch_queue_create("cache.savelist.queue", DISPATCH_QUEUE_CONCURRENT);
+    }
+    return self;
+}
+
+- (void)setObject:(id)object forKey:(id)key {
+    dispatch_barrier_async(_queue, ^{
+        [_dict setObject:object forKey:key];
+    });
+
+    [self performSelector:@selector(saveAfterDelay)];
+}
+
+- (id)objectForKey:(id)key {
+    __block id obj;
+    dispatch_sync(_queue, ^{
+        obj = [_dict objectForKey:key];
+    });
+    return obj;
+}
+
+- (NSArray *)removeObjectsOlderThan:(NSDate *)date {
+    __block NSSet *keysToDelete;
+    dispatch_sync(_queue, ^{
+        keysToDelete = [_dict keysOfEntriesPassingTest:^BOOL(id key, id obj, BOOL *stop) {
+            NSDate *d = [(NSArray *)obj objectAtIndex:0];
+            return [d compare:date] == NSOrderedAscending;
+        }];
+    });
+
+    dispatch_barrier_async(_queue, ^{
+        [_dict removeObjectsForKeys:[keysToDelete allObjects]];
+    });
+
+    [self performSelector:@selector(saveAfterDelay)];
+
+    return [keysToDelete allObjects];
+}
+
+- (void)clear {
+    dispatch_barrier_async(_queue, ^{
+        [_dict removeAllObjects];
+    });
+
+    [self performSelector:@selector(saveAfterDelay)];
+}
+
+- (void)saveCacheDictionary {
+    dispatch_barrier_async(_queue, ^{
+        [_dict writeToFile:_path atomically:YES];
+        NSLog(@"[RNCachingURLProtocol] cache list persisted.");
+    });
+}
+
+- (void)saveAfterDelay {
+    [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(saveCacheDictionary) object:nil];
+    [self performSelector:@selector(saveCacheDictionary) withObject:nil afterDelay:0.5];
+}
+
+@end
