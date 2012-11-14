@@ -89,11 +89,11 @@ static RNCacheListStore *_cacheListStore = nil;
 + (NSMutableDictionary *)expireTime {
     if (_expireTime == nil) {
         _expireTime = [NSMutableDictionary dictionary];
-        [_expireTime setObject:@(60 * 30) forKey:@"application/json"]; // 30 min
-        [_expireTime setObject:@(60 * 30) forKey:@"text/html"]; // 30 min
-        [_expireTime setObject:@(60 * 60 * 24 * 30) forKey:@"image/jpeg"]; // 30 day
-        [_expireTime setObject:@(60 * 60 * 24 * 30) forKey:@"image/jpg"]; // 30 day
-        [_expireTime setObject:@(60 * 60 * 24 * 30) forKey:@"image/png"]; // 30 day
+        _expireTime[@"application/json"] = @(60 * 30); // 30 min
+        _expireTime[@"text/html"] = @(60 * 30); // 30 min
+        _expireTime[@"image/jpeg"] = @(60 * 60 * 24 * 30); // 30 day
+        _expireTime[@"image/jpg"] = @(60 * 60 * 24 * 30); // 30 day
+        _expireTime[@"image/png"] = @(60 * 60 * 24 * 30); // 30 day
     }
     return _expireTime;
 }
@@ -285,8 +285,8 @@ static RNCacheListStore *_cacheListStore = nil;
         return YES;
     }
 
-    NSDate *modifiedDate = [meta objectAtIndex:0];
-    NSString *mimeType = [meta objectAtIndex:1];
+    NSDate *modifiedDate = meta[0];
+    NSString *mimeType = meta[1];
 
     BOOL expired = YES;
 
@@ -394,7 +394,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 
 - (void)setObject:(id)object forKey:(id)key {
     dispatch_barrier_async(_queue, ^{
-        [_dict setObject:object forKey:key];
+        _dict[key] = object;
     });
 
     [self performSelector:@selector(saveAfterDelay)];
@@ -403,7 +403,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 - (id)objectForKey:(id)key {
     __block id obj;
     dispatch_sync(_queue, ^{
-        obj = [_dict objectForKey:key];
+        obj = _dict[key];
     });
     return obj;
 }
@@ -412,7 +412,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
     __block NSSet *keysToDelete;
     dispatch_sync(_queue, ^{
         keysToDelete = [_dict keysOfEntriesPassingTest:^BOOL(id key, id obj, BOOL *stop) {
-            NSDate *d = [(NSArray *)obj objectAtIndex:0];
+            NSDate *d = ((NSArray *)obj)[0];
             return [d compare:date] == NSOrderedAscending;
         }];
     });
