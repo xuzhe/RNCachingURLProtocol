@@ -140,6 +140,16 @@ static RNCacheListStore *_cacheListStore = nil;
     return [offlineCachePath stringByAppendingPathComponent:key];
 }
 
++ (NSData *)dataForURL:(NSString *)url {
+    NSString *file = [self cachePathForKey:[NSString stringWithFormat:@"%x", [url hash]]];
+    RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:file];
+    if (cache) {
+        return [cache data];
+    } else {
+        return nil;
+    }
+}
+
 - (NSString *)cachePathForRequest:(NSURLRequest *)aRequest {
     return [[self class] cachePathForKey:[NSString stringWithFormat:@"%x", [[[aRequest URL] absoluteString] hash]]];
 }
