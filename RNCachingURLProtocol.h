@@ -64,7 +64,7 @@
 
 + (NSMutableDictionary *)expireTime;
 
-+ (NSMutableArray *)excludeHostPatterns;
++ (NSMutableArray *)includeHostPatterns;
 
 + (void)removeCache;
 + (void)removeCacheOlderThan:(NSDate *)date;

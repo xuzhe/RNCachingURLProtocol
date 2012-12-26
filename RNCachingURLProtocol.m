@@ -69,7 +69,7 @@ static NSString *RNCachingPlistFile = @"RNCache.plist";
 @end
 
 static NSMutableDictionary *_expireTime = nil;
-static NSMutableArray *_excludeHosts = nil;
+static NSMutableArray *_includeHosts = nil;
 static RNCacheListStore *_cacheListStore = nil;
 
 @implementation RNCachingURLProtocol
@@ -98,12 +98,12 @@ static RNCacheListStore *_cacheListStore = nil;
     return _expireTime;
 }
 
-+ (NSMutableArray *)excludeHostPatterns {
-    if (_excludeHosts == nil) {
-        _excludeHosts = [NSMutableArray array];
++ (NSMutableArray *)includeHostPatterns {
+    if (_includeHosts == nil) {
+        _includeHosts = [NSMutableArray array];
     }
 
-    return _excludeHosts;
+    return _includeHosts;
 }
 
 + (BOOL)canInitWithRequest:(NSURLRequest *)request {
@@ -258,26 +258,26 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (BOOL)useCache {
-    if ([self isHostExcluded] || ![[[self request] HTTPMethod] isEqualToString:@"GET"]){
+    if (!([self isHostIncluded] && [[[self request] HTTPMethod] isEqualToString:@"GET"])) {
         return NO;
     }
-    BOOL reachable = (BOOL) [[Reachability reachabilityWithHostName:[[[self request] URL] host]] currentReachabilityStatus] != NotReachable;
-    if (!reachable) {
+
+    if ([[Reachability reachabilityWithHostName:[[[self request] URL] host]] currentReachabilityStatus] == NotReachable) {
         return YES;
     } else {
         return ![self isCacheExpired];
     }
 }
 
-- (BOOL)isHostExcluded {
+- (BOOL)isHostIncluded {
     NSString *string = [[[self request] URL] absoluteString];
 
-    NSError  *error  = NULL;
-    for (NSString *pattern in _excludeHosts) {
+    NSError *error = NULL;
+    for (NSString *pattern in _includeHosts) {
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
         NSTextCheckingResult *result = [regex firstMatchInString:string options:NSMatchingAnchored range:NSMakeRange(0, string.length)];
         if (result.numberOfRanges) {
-            NSLog(@"[RNCachingURLProtocol] %@ excluded", string);
+            NSLog(@"[RNCachingURLProtocol] include: %@", string);
             return YES;
         }
     }
