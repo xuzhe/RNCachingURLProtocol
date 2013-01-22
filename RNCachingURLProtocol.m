@@ -28,18 +28,12 @@
 #import "RNCachingURLProtocol.h"
 #import "Reachability.h"
 
-#define WORKAROUND_MUTABLE_COPY_LEAK 1
-
-#if WORKAROUND_MUTABLE_COPY_LEAK
-
 // required to workaround http://openradar.appspot.com/11596316
 @interface NSURLRequest (MutableCopyWorkaround)
 
 - (id)mutableCopyWorkaround;
 
 @end
-
-#endif
 
 @interface RNCachedData : NSObject <NSCoding>
 @property(nonatomic, readwrite, strong) NSData *data;
@@ -155,20 +149,7 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (void)startLoading {
-    if (![self useCache]) {
-        NSMutableURLRequest *connectionRequest =
-#if WORKAROUND_MUTABLE_COPY_LEAK
-                [[self request] mutableCopyWorkaround];
-#else
-      [[self request] mutableCopy];
-#endif
-        // we need to mark this request with our header so we know not to handle it in +[NSURLProtocol canInitWithRequest:].
-        [connectionRequest setValue:@"" forHTTPHeaderField:RNCachingURLHeader];
-        NSURLConnection *connection = [NSURLConnection connectionWithRequest:connectionRequest
-                                                                    delegate:self];
-        [self setConnection:connection];
-    }
-    else {
+    if ([self useCache]) {
         RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:[self cachePathForRequest:[self request]]];
         if (cache) {
             NSData *data = [cache data];
@@ -177,16 +158,20 @@ static RNCacheListStore *_cacheListStore = nil;
             if (redirectRequest) {
                 [[self client] URLProtocol:self wasRedirectedToRequest:redirectRequest redirectResponse:response];
             } else {
-
                 [[self client] URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed]; // we handle caching ourselves.
                 [[self client] URLProtocol:self didLoadData:data];
                 [[self client] URLProtocolDidFinishLoading:self];
             }
-        }
-        else {
-            [[self client] URLProtocol:self didFailWithError:[NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorCannotConnectToHost userInfo:nil]];
+            return;
         }
     }
+
+    NSMutableURLRequest *connectionRequest = [[self request] mutableCopyWorkaround];
+    // we need to mark this request with our header so we know not to handle it in +[NSURLProtocol canInitWithRequest:].
+    [connectionRequest setValue:@"" forHTTPHeaderField:RNCachingURLHeader];
+    NSURLConnection *connection = [NSURLConnection connectionWithRequest:connectionRequest
+                                                                delegate:self];
+    [self setConnection:connection];
 }
 
 - (void)stopLoading {
@@ -198,12 +183,7 @@ static RNCacheListStore *_cacheListStore = nil;
 - (NSURLRequest *)connection:(NSURLConnection *)connection willSendRequest:(NSURLRequest *)request redirectResponse:(NSURLResponse *)response {
 // Thanks to Nick Dowell https://gist.github.com/1885821
     if (response != nil) {
-        NSMutableURLRequest *redirectableRequest =
-#if WORKAROUND_MUTABLE_COPY_LEAK
-                [request mutableCopyWorkaround];
-#else
-      [request mutableCopy];
-#endif
+        NSMutableURLRequest *redirectableRequest = [request mutableCopyWorkaround];
         // We need to remove our header so we know to handle this request and cache it.
         // There are 3 requests in flight: the outside request, which we handled, the internal request,
         // which we marked with our header, and the redirectableRequest, which we're modifying here.
@@ -359,8 +339,6 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 
 @end
 
-#if WORKAROUND_MUTABLE_COPY_LEAK
-
 @implementation NSURLRequest (MutableCopyWorkaround)
 
 - (id)mutableCopyWorkaround {
@@ -376,8 +354,6 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 }
 
 @end
-
-#endif
 
 #pragma mark - RNCacheListStore
 @implementation RNCacheListStore {
