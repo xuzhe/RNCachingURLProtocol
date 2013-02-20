@@ -69,8 +69,10 @@
 + (void)removeCache;
 + (void)removeCacheOlderThan:(NSDate *)date;
 + (NSData *)dataForURL:(NSString *)url;
++ (BOOL)isURLInclude:(NSString *)URLStr;
++ (NSString *)cachePathforURL:(NSURL *)url;
++ (NSString *)cachePathForRequest:(NSURLRequest *)aRequest;
 
-- (NSString *)cachePathForRequest:(NSURLRequest *)aRequest;
 - (BOOL) useCache;
 
 @end

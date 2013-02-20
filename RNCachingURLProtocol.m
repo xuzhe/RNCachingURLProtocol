@@ -27,6 +27,7 @@
 
 #import "RNCachingURLProtocol.h"
 #import "Reachability.h"
+#import "NSString+SHA.h"
 
 // required to workaround http://openradar.appspot.com/11596316
 @interface NSURLRequest (MutableCopyWorkaround)
@@ -135,7 +136,7 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 + (NSData *)dataForURL:(NSString *)url {
-    NSString *file = [self cachePathForKey:[NSString stringWithFormat:@"%x", [url hash]]];
+    NSString *file = [self cachePathForKey:[[url sha1] stringByAppendingPathExtension:[[NSURL URLWithString:url] pathExtension]]];
     RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:file];
     if (cache) {
         return [cache data];
@@ -144,13 +145,17 @@ static RNCacheListStore *_cacheListStore = nil;
     }
 }
 
-- (NSString *)cachePathForRequest:(NSURLRequest *)aRequest {
-    return [[self class] cachePathForKey:[NSString stringWithFormat:@"%x", [[[aRequest URL] absoluteString] hash]]];
++ (NSString *)cachePathforURL:(NSURL *)url {
+    return [self cachePathForKey:[[[url absoluteString] sha1] stringByAppendingPathExtension:[url pathExtension]]];
+}
+
++ (NSString *)cachePathForRequest:(NSURLRequest *)aRequest {
+    return [self cachePathforURL:[aRequest URL]];
 }
 
 - (void)startLoading {
     if ([self useCache]) {
-        RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:[self cachePathForRequest:[self request]]];
+        RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:[[self class] cachePathForRequest:[self request]]];
         if (cache) {
             NSData *data = [cache data];
             NSURLResponse *response = [cache response];
@@ -191,7 +196,7 @@ static RNCacheListStore *_cacheListStore = nil;
         // must not be marked with our header.
         [redirectableRequest setValue:nil forHTTPHeaderField:RNCachingURLHeader];
 
-        NSString *cachePath = [self cachePathForRequest:[self request]];
+        NSString *cachePath = [[self class] cachePathForRequest:[self request]];
         RNCachedData *cache = [RNCachedData new];
         [cache setResponse:response];
         [cache setData:[self data]];
@@ -224,7 +229,7 @@ static RNCacheListStore *_cacheListStore = nil;
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
     [[self client] URLProtocolDidFinishLoading:self];
 
-    NSString *cachePath = [self cachePathForRequest:[self request]];
+    NSString *cachePath = [[self class] cachePathForRequest:[self request]];
     RNCachedData *cache = [RNCachedData new];
     [cache setResponse:[self response]];
     [cache setData:[self data]];
@@ -249,25 +254,28 @@ static RNCacheListStore *_cacheListStore = nil;
     }
 }
 
-- (BOOL)isHostIncluded {
-    NSString *string = [[[self request] URL] absoluteString];
-
++ (BOOL)isURLInclude:(NSString *)URLStr {
     NSError *error = NULL;
-    for (NSString *pattern in _includeHosts) {
+    for (NSString *pattern in [self includeHostPatterns]) {
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
-        NSTextCheckingResult *result = [regex firstMatchInString:string options:NSMatchingWithoutAnchoringBounds range:NSMakeRange(0, string.length)];
+        NSTextCheckingResult *result = [regex firstMatchInString:URLStr options:NSMatchingWithoutAnchoringBounds range:NSMakeRange(0, URLStr.length)];
         if (result.numberOfRanges) {
-            NSLog(@"[RNCachingURLProtocol] include: %@", string);
+            NSLog(@"[RNCachingURLProtocol] include: %@", URLStr);
             return YES;
         }
     }
     
-    NSLog(@"[RNCachingURLProtocol] NOT include: %@", string);
+    NSLog(@"[RNCachingURLProtocol] NOT include: %@", URLStr);
     return NO;
 }
 
+- (BOOL)isHostIncluded {
+    NSString *string = [[[self request] URL] absoluteString];
+    return [RNCachingURLProtocol isURLInclude:string];
+}
+
 - (NSArray *)cacheMeta {
-    return [[[self class] cacheListStore] objectForKey:[self cachePathForRequest:[self request]]];
+    return [[[self class] cacheListStore] objectForKey:[[self class] cachePathForRequest:[self request]]];
 }
 
 - (BOOL)isCacheExpired {
