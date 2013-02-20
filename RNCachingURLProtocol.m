@@ -136,7 +136,8 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 + (NSData *)dataForURL:(NSString *)url {
-    NSString *file = [self cachePathForKey:[[url sha1] stringByAppendingPathExtension:[[NSURL URLWithString:url] pathExtension]]];
+//    NSString *file = [self cachePathForKey:[[url sha1] stringByAppendingPathExtension:[[NSURL URLWithString:url] pathExtension]]];
+    NSString *file = [self cachePathForKey:[url sha1]];
     RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:file];
     if (cache) {
         return [cache data];
@@ -146,7 +147,8 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 + (NSString *)cachePathforURL:(NSURL *)url {
-    return [self cachePathForKey:[[[url absoluteString] sha1] stringByAppendingPathExtension:[url pathExtension]]];
+//    return [self cachePathForKey:[[[url absoluteString] sha1] stringByAppendingPathExtension:[url pathExtension]]];
+    return [self cachePathForKey:[[url absoluteString] sha1]];
 }
 
 + (NSString *)cachePathForRequest:(NSURLRequest *)aRequest {
