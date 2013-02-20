@@ -255,13 +255,14 @@ static RNCacheListStore *_cacheListStore = nil;
     NSError *error = NULL;
     for (NSString *pattern in _includeHosts) {
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
-        NSTextCheckingResult *result = [regex firstMatchInString:string options:NSMatchingAnchored range:NSMakeRange(0, string.length)];
+        NSTextCheckingResult *result = [regex firstMatchInString:string options:NSMatchingWithoutAnchoringBounds range:NSMakeRange(0, string.length)];
         if (result.numberOfRanges) {
             NSLog(@"[RNCachingURLProtocol] include: %@", string);
             return YES;
         }
     }
-
+    
+    NSLog(@"[RNCachingURLProtocol] NOT include: %@", string);
     return NO;
 }
 
