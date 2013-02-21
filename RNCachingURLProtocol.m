@@ -37,11 +37,11 @@
 @end
 
 @interface RNCachedData : NSObject <NSCoding>
-@property(nonatomic, readwrite, strong) NSData *data;
 @property(nonatomic, readwrite, strong) NSURLResponse *response;
 @property(nonatomic, readwrite, strong) NSURLRequest *redirectRequest;
 @property(nonatomic, readwrite, strong) NSString *mimeType;
 @property(nonatomic, readwrite, strong) NSDate *lastModifiedDate;
+@property(nonatomic, readwrite, strong) NSString *filePath;
 @end
 
 static NSString *RNCachingURLHeader = @"X-RNCache";
@@ -55,12 +55,15 @@ static NSString *RNCachingPlistFile = @"RNCache.plist";
 - (void)clear;
 @end
 
-@interface RNCachingURLProtocol () // <NSURLConnectionDelegate, NSURLConnectionDataDelegate> iOS5-only
+@interface RNCachingURLProtocol () <NSURLConnectionDelegate, NSURLConnectionDataDelegate, NSStreamDelegate> {    //  iOS5-only
+    NSOutputStream *_outputStream;
+    NSInputStream *_inputStream;
+}
+
 @property(nonatomic, readwrite, strong) NSURLConnection *connection;
-@property(nonatomic, readwrite, strong) NSMutableData *data;
 @property(nonatomic, readwrite, strong) NSURLResponse *response;
 
-- (void)appendData:(NSData *)newData;
+- (void)appendData:(NSData *)data;
 @end
 
 static NSMutableDictionary *_expireTime = nil;
@@ -68,9 +71,6 @@ static NSMutableArray *_includeHosts = nil;
 static RNCacheListStore *_cacheListStore = nil;
 
 @implementation RNCachingURLProtocol
-@synthesize connection = connection_;
-@synthesize data = data_;
-@synthesize response = response_;
 
 + (RNCacheListStore *)cacheListStore {
     @synchronized(self) {
@@ -135,39 +135,107 @@ static RNCacheListStore *_cacheListStore = nil;
     return [offlineCachePath stringByAppendingPathComponent:key];
 }
 
++ (NSString *)cacheDataPathForKey:(NSString *)key {
+    NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
+    NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:@"RNCaching/Data"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:offlineCachePath withIntermediateDirectories:YES attributes:nil error:nil];
+    return [offlineCachePath stringByAppendingPathComponent:key];
+}
+
++ (NSString *)cacheDataPathForRequest:(NSURLRequest *)aRequest {
+    return [self cacheDataPathForURL:[aRequest URL]];
+}
+
 + (NSData *)dataForURL:(NSString *)url {
-//    NSString *file = [self cachePathForKey:[[url sha1] stringByAppendingPathExtension:[[NSURL URLWithString:url] pathExtension]]];
     NSString *file = [self cachePathForKey:[url sha1]];
     RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:file];
     if (cache) {
-        return [cache data];
+        return [NSData dataWithContentsOfFile:[cache filePath]];
     } else {
         return nil;
     }
 }
 
-+ (NSString *)cachePathforURL:(NSURL *)url {
-//    return [self cachePathForKey:[[[url absoluteString] sha1] stringByAppendingPathExtension:[url pathExtension]]];
++ (NSString *)cachePathForURL:(NSURL *)url {
     return [self cachePathForKey:[[url absoluteString] sha1]];
 }
 
++ (NSString *)cacheDataPathForURL:(NSURL *)url {
+    return [self cacheDataPathForKey:[[[url absoluteString] sha1] stringByAppendingPathExtension:[url pathExtension]]];
+}
+
 + (NSString *)cachePathForRequest:(NSURLRequest *)aRequest {
-    return [self cachePathforURL:[aRequest URL]];
+    return [self cachePathForURL:[aRequest URL]];
+}
+
+- (NSOutputStream *)outputStream {
+    if (!_outputStream) {
+        NSString *dataPath = [[self class] cacheDataPathForRequest:[self request]];
+        _outputStream = [NSOutputStream outputStreamToFileAtPath:dataPath append:[[NSFileManager defaultManager] fileExistsAtPath:[[self class] cacheDataPathForRequest:[self request]]]];
+        [_outputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+    }
+    return _outputStream;
+}
+
+- (void)closeOutputStream:(NSOutputStream *)oStream {
+    if (oStream) {
+        [oStream close];
+        [oStream removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+        oStream.delegate = nil;
+        oStream = nil;
+    }
+}
+
+- (void)closeInputStream:(NSInputStream *)iStream {
+    if (iStream) {
+        [iStream close];
+        [iStream removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+        iStream.delegate = nil;
+        iStream = nil;
+    }
+}
+
+- (void)stream:(NSStream *)stream handleEvent:(NSStreamEvent)eventCode {
+    switch (eventCode) {
+        case NSStreamEventHasBytesAvailable: {
+            uint8_t buf[1024];
+            unsigned int len = 0;
+            len = [(NSInputStream *)stream read:buf maxLength:1024];
+            if (len) {
+                NSData *data = [NSData dataWithBytes:(const void *)buf length:len];
+                [[self client] URLProtocol:self didLoadData:data];
+            } else {
+                NSLog(@"no buffer!");
+            }
+            break;
+        }
+        case NSStreamEventEndEncountered: {
+            [self closeInputStream:(NSInputStream *)stream];
+            [[self client] URLProtocolDidFinishLoading:self];
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 - (void)startLoading {
     if ([self useCache]) {
         RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:[[self class] cachePathForRequest:[self request]]];
         if (cache) {
-            NSData *data = [cache data];
             NSURLResponse *response = [cache response];
             NSURLRequest *redirectRequest = [cache redirectRequest];
             if (redirectRequest) {
                 [[self client] URLProtocol:self wasRedirectedToRequest:redirectRequest redirectResponse:response];
             } else {
+                [self closeInputStream:_inputStream];
+                
                 [[self client] URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed]; // we handle caching ourselves.
-                [[self client] URLProtocol:self didLoadData:data];
-                [[self client] URLProtocolDidFinishLoading:self];
+                NSInputStream *iStream = [NSInputStream inputStreamWithFileAtPath:[[self class] cacheDataPathForRequest:[self request]]];
+                // iStream is NSInputStream instance variable
+                [iStream setDelegate:self];
+                [iStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+                [iStream open];
             }
             return;
         }
@@ -201,7 +269,7 @@ static RNCacheListStore *_cacheListStore = nil;
         NSString *cachePath = [[self class] cachePathForRequest:[self request]];
         RNCachedData *cache = [RNCachedData new];
         [cache setResponse:response];
-        [cache setData:[self data]];
+        [cache setFilePath:[[self class] cacheDataPathForRequest:[self request]]];
         [cache setRedirectRequest:redirectableRequest];
         [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
         [[self client] URLProtocol:self wasRedirectedToRequest:redirectableRequest redirectResponse:response];
@@ -218,14 +286,15 @@ static RNCacheListStore *_cacheListStore = nil;
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error {
     [[self client] URLProtocol:self didFailWithError:error];
+    [self closeOutputStream:_outputStream];
     [self setConnection:nil];
-    [self setData:nil];
     [self setResponse:nil];
 }
 
 - (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response {
     [self setResponse:response];
     [[self client] URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed];  // We cache ourselves.
+    [[self outputStream] open];
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
@@ -234,14 +303,14 @@ static RNCacheListStore *_cacheListStore = nil;
     NSString *cachePath = [[self class] cachePathForRequest:[self request]];
     RNCachedData *cache = [RNCachedData new];
     [cache setResponse:[self response]];
-    [cache setData:[self data]];
+    [cache setFilePath:[[self class] cacheDataPathForRequest:[self request]]];
     [[[self class] cacheListStore] setObject:@[[NSDate date], [self response].MIMEType] forKey:cachePath];
 
     [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
 
     [self setConnection:nil];
-    [self setData:nil];
     [self setResponse:nil];
+    [self closeOutputStream:_outputStream];
 }
 
 - (BOOL)useCache {
@@ -303,17 +372,21 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (void)appendData:(NSData *)newData {
-    if ([self data] == nil) {
-        [self setData:[newData mutableCopy]];
+    NSOutputStream *oStream = [self outputStream];
+    if ([oStream hasSpaceAvailable]) {
+        const uint8_t *dataBuffer = (uint8_t *) [newData bytes];
+        [oStream write:&dataBuffer[0] maxLength:[newData length]];
     }
-    else {
-        [[self data] appendData:newData];
-    }
+}
+
+- (void)dealloc {
+    [self closeInputStream:_inputStream];
+    [self closeOutputStream:_outputStream];
 }
 
 @end
 
-static NSString *const kDataKey = @"data";
+static NSString *const kFilePathKey = @"filePath";
 static NSString *const kResponseKey = @"response";
 static NSString *const kRedirectRequestKey = @"redirectRequest";
 static NSString *const kMimeType = @"mimeType";
@@ -321,15 +394,9 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 
 @implementation RNCachedData
 
-@synthesize data = data_;
-@synthesize response = response_;
-@synthesize redirectRequest = redirectRequest_;
-@synthesize mimeType = mimeType_;
-@synthesize lastModifiedDate = lastModifiedDate_;
-
 - (void)encodeWithCoder:(NSCoder *)aCoder {
     [aCoder encodeObject:[NSDate new] forKey:kLastModifiedDateKey];
-    [aCoder encodeObject:[self data] forKey:kDataKey];
+    [aCoder encodeObject:[self filePath] forKey:kFilePathKey];
     [aCoder encodeObject:[self response].MIMEType forKey:kMimeType];
     [aCoder encodeObject:[self response] forKey:kResponseKey];
     [aCoder encodeObject:[self redirectRequest] forKey:kRedirectRequestKey];
@@ -339,7 +406,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
     self = [super init];
     if (self != nil) {
         [self setLastModifiedDate:[aDecoder decodeObjectForKey:kLastModifiedDateKey]];
-        [self setData:[aDecoder decodeObjectForKey:kDataKey]];
+        [self setFilePath:[aDecoder decodeObjectForKey:kFilePathKey]];
         [self setMimeType:[aDecoder decodeObjectForKey:kMimeType]];
         [self setResponse:[aDecoder decodeObjectForKey:kResponseKey]];
         [self setRedirectRequest:[aDecoder decodeObjectForKey:kRedirectRequestKey]];

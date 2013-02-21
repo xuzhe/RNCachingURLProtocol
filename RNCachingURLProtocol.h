@@ -70,8 +70,10 @@
 + (void)removeCacheOlderThan:(NSDate *)date;
 + (NSData *)dataForURL:(NSString *)url;
 + (BOOL)isURLInclude:(NSString *)URLStr;
-+ (NSString *)cachePathforURL:(NSURL *)url;
++ (NSString *)cachePathForURL:(NSURL *)url;
 + (NSString *)cachePathForRequest:(NSURLRequest *)aRequest;
++ (NSString *)cacheDataPathForURL:(NSURL *)url;
++ (NSString *)cacheDataPathForRequest:(NSURLRequest *)aRequest;
 
 - (BOOL) useCache;
 
