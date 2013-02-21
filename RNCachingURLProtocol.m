@@ -51,7 +51,7 @@ static NSString *RNCachingPlistFile = @"RNCache.plist";
 - (id)initWithPath:(NSString *)path;
 - (void)setObject:(id)object forKey:(id)aKey;
 - (id)objectForKey:(id)aKey;
-- (NSArray *)removeObjectsOlderThan:(NSDate *)date;
+- (NSArray *)removeObjectsOlderThan:(NSDate *)date userInfo:(NSMutableArray **)userInfoPtr;
 - (void)clear;
 @end
 
@@ -62,6 +62,7 @@ static NSString *RNCachingPlistFile = @"RNCache.plist";
 
 @property(nonatomic, readwrite, strong) NSURLConnection *connection;
 @property(nonatomic, readwrite, strong) NSURLResponse *response;
+@property(nonatomic, readonly, assign) BOOL isURLInclude;
 
 - (void)appendData:(NSData *)data;
 @end
@@ -122,9 +123,12 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 + (void)removeCacheOlderThan:(NSDate *)date {
-    NSArray *keysToDelete = [[self cacheListStore] removeObjectsOlderThan:date];
-    for (NSString *key in keysToDelete) {
-        [[NSFileManager defaultManager] removeItemAtPath:key error:nil];
+    NSArray *userInfo = nil;
+    NSArray *keysToDelete = [[self cacheListStore] removeObjectsOlderThan:date userInfo:&userInfo];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    for (NSUInteger i = 0; i < [keysToDelete count]; i++) {
+        [fileManager removeItemAtPath:userInfo[i][2] error:nil];
+        [fileManager removeItemAtPath:keysToDelete[i] error:nil];
     }
 }
 
@@ -171,7 +175,7 @@ static RNCacheListStore *_cacheListStore = nil;
 - (NSOutputStream *)outputStream {
     if (!_outputStream) {
         NSString *dataPath = [[self class] cacheDataPathForRequest:[self request]];
-        _outputStream = [NSOutputStream outputStreamToFileAtPath:dataPath append:[[NSFileManager defaultManager] fileExistsAtPath:[[self class] cacheDataPathForRequest:[self request]]]];
+        _outputStream = [NSOutputStream outputStreamToFileAtPath:dataPath append:NO];   // NO Resume broken transfer at this time
         [_outputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
     }
     return _outputStream;
@@ -266,12 +270,14 @@ static RNCacheListStore *_cacheListStore = nil;
         // must not be marked with our header.
         [redirectableRequest setValue:nil forHTTPHeaderField:RNCachingURLHeader];
 
-        NSString *cachePath = [[self class] cachePathForRequest:[self request]];
-        RNCachedData *cache = [RNCachedData new];
-        [cache setResponse:response];
-        [cache setFilePath:[[self class] cacheDataPathForRequest:[self request]]];
-        [cache setRedirectRequest:redirectableRequest];
-        [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
+        if (_isURLInclude) {
+            NSString *cachePath = [[self class] cachePathForRequest:[self request]];
+            RNCachedData *cache = [RNCachedData new];
+            [cache setResponse:response];
+            [cache setFilePath:[[self class] cacheDataPathForRequest:[self request]]];
+            [cache setRedirectRequest:redirectableRequest];
+            [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
+        }
         [[self client] URLProtocol:self wasRedirectedToRequest:redirectableRequest redirectResponse:response];
         return redirectableRequest;
     } else {
@@ -281,12 +287,16 @@ static RNCacheListStore *_cacheListStore = nil;
 
 - (void)connection:(NSURLConnection *)connection didReceiveData:(NSData *)data {
     [[self client] URLProtocol:self didLoadData:data];
-    [self appendData:data];
+    if (_isURLInclude) {
+        [self appendData:data];
+    }
 }
 
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error {
     [[self client] URLProtocol:self didFailWithError:error];
-    [self closeOutputStream:_outputStream];
+    if (_isURLInclude) {
+        [self closeOutputStream:_outputStream];
+    }
     [self setConnection:nil];
     [self setResponse:nil];
 }
@@ -294,23 +304,28 @@ static RNCacheListStore *_cacheListStore = nil;
 - (void)connection:(NSURLConnection *)connection didReceiveResponse:(NSURLResponse *)response {
     [self setResponse:response];
     [[self client] URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed];  // We cache ourselves.
-    [[self outputStream] open];
+    if (_isURLInclude) {
+        [[self outputStream] open];
+    }
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
     [[self client] URLProtocolDidFinishLoading:self];
 
-    NSString *cachePath = [[self class] cachePathForRequest:[self request]];
-    RNCachedData *cache = [RNCachedData new];
-    [cache setResponse:[self response]];
-    [cache setFilePath:[[self class] cacheDataPathForRequest:[self request]]];
-    [[[self class] cacheListStore] setObject:@[[NSDate date], [self response].MIMEType] forKey:cachePath];
-
-    [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
+    if (_isURLInclude) {
+        NSString *cachePath = [[self class] cachePathForRequest:[self request]];
+        RNCachedData *cache = [RNCachedData new];
+        [cache setResponse:[self response]];
+        [cache setFilePath:[[self class] cacheDataPathForRequest:[self request]]];
+        [[[self class] cacheListStore] setObject:@[[NSDate date], [self response].MIMEType, [cache filePath]] forKey:cachePath];
+        
+        [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
+        
+        [self closeOutputStream:_outputStream];
+    }
 
     [self setConnection:nil];
     [self setResponse:nil];
-    [self closeOutputStream:_outputStream];
 }
 
 - (BOOL)useCache {
@@ -321,7 +336,7 @@ static RNCacheListStore *_cacheListStore = nil;
     if ([[Reachability reachabilityWithHostName:[[[self request] URL] host]] currentReachabilityStatus] == NotReachable) {
         return YES;
     } else {
-        return ![self isCacheExpired];
+        return ![self isCacheExpired] && [self isCacheDataExists];
     }
 }
 
@@ -342,7 +357,8 @@ static RNCacheListStore *_cacheListStore = nil;
 
 - (BOOL)isHostIncluded {
     NSString *string = [[[self request] URL] absoluteString];
-    return [RNCachingURLProtocol isURLInclude:string];
+    _isURLInclude = [RNCachingURLProtocol isURLInclude:string];
+    return _isURLInclude;
 }
 
 - (NSArray *)cacheMeta {
@@ -369,6 +385,10 @@ static RNCacheListStore *_cacheListStore = nil;
 
     NSLog(@"[RNCachingURLProtocol] %@: %@", expired ? @"expired" : @"hit", [[[self request] URL] absoluteString]);
     return expired;
+}
+
+- (BOOL)isCacheDataExists {
+    return [[NSFileManager defaultManager] fileExistsAtPath:[[self class] cacheDataPathForRequest:[self request]]];
 }
 
 - (void)appendData:(NSData *)newData {
@@ -472,12 +492,22 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
     return obj;
 }
 
-- (NSArray *)removeObjectsOlderThan:(NSDate *)date {
+- (NSArray *)removeObjectsOlderThan:(NSDate *)date userInfo:(NSMutableArray **)userInfoPtr {
     __block NSSet *keysToDelete;
     dispatch_sync(_queue, ^{
+        if (userInfoPtr) {
+            *userInfoPtr = [NSMutableArray arrayWithCapacity:[_dict count]];
+        }
         keysToDelete = [_dict keysOfEntriesPassingTest:^BOOL(id key, id obj, BOOL *stop) {
-            NSDate *d = ((NSArray *)obj)[0];
-            return [d compare:date] == NSOrderedAscending;
+            NSArray *userInfo = (NSArray *)obj;
+            NSDate *d = userInfo[0];
+            if ([d compare:date] == NSOrderedAscending) {
+                if (userInfoPtr) {
+                    [*userInfoPtr addObject:userInfo];
+                }
+                return YES;
+            }
+            return NO;
         }];
     });
 
