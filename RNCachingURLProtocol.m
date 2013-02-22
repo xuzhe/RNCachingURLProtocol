@@ -47,14 +47,6 @@
 static NSString *RNCachingURLHeader = @"X-RNCache";
 static NSString *RNCachingPlistFile = @"RNCache.plist";
 
-@interface RNCacheListStore : NSObject
-- (id)initWithPath:(NSString *)path;
-- (void)setObject:(id)object forKey:(id)aKey;
-- (id)objectForKey:(id)aKey;
-- (NSArray *)removeObjectsOlderThan:(NSDate *)date userInfo:(NSMutableArray **)userInfoPtr;
-- (void)clear;
-@end
-
 @interface RNCachingURLProtocol () <NSURLConnectionDelegate, NSURLConnectionDataDelegate, NSStreamDelegate> {    //  iOS5-only
     NSOutputStream *_outputStream;
     NSInputStream *_inputStream;

@@ -78,3 +78,11 @@
 - (BOOL) useCache;
 
 @end
+
+@interface RNCacheListStore : NSObject
+- (id)initWithPath:(NSString *)path;
+- (void)setObject:(id)object forKey:(id)aKey;
+- (id)objectForKey:(id)aKey;
+- (NSArray *)removeObjectsOlderThan:(NSDate *)date userInfo:(NSMutableArray **)userInfoPtr;
+- (void)clear;
+@end
