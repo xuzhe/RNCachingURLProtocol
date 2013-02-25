@@ -46,6 +46,7 @@
 
 static NSString *RNCachingURLHeader = @"X-RNCache";
 static NSString *RNCachingPlistFile = @"RNCache.plist";
+static NSString *RNCachingFolderName = @"RNCaching";
 
 @interface RNCachingURLProtocol () <NSURLConnectionDelegate, NSURLConnectionDataDelegate, NSStreamDelegate> {    //  iOS5-only
     NSOutputStream *_outputStream;
@@ -79,9 +80,9 @@ static RNCacheListStore *_cacheListStore = nil;
         _expireTime = [NSMutableDictionary dictionary];
         _expireTime[@"application/json"] = @(60 * 30); // 30 min
         _expireTime[@"text/html"] = @(60 * 30); // 30 min
-        _expireTime[@"image/jpeg"] = @(60 * 60 * 24 * 30); // 30 day
-        _expireTime[@"image/jpg"] = @(60 * 60 * 24 * 30); // 30 day
-        _expireTime[@"image/png"] = @(60 * 60 * 24 * 30); // 30 day
+        _expireTime[@"image/"] = @(60 * 60 * 24 * 30); // 30 day
+        _expireTime[@"video/"] = @(60 * 60 * 24 * 30); // 30 day
+        _expireTime[@"audio/"] = @(60 * 60 * 24 * 30); // 30 day
     }
     return _expireTime;
 }
@@ -109,8 +110,7 @@ static RNCacheListStore *_cacheListStore = nil;
 
 + (void)removeCache {
     [[self cacheListStore] clear];
-    NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
-    NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:@"RNCaching"];
+    NSString *offlineCachePath = [self RNCachingFolderPath];
     [[NSFileManager defaultManager] removeItemAtPath:offlineCachePath error:nil];
 }
 
@@ -124,16 +124,19 @@ static RNCacheListStore *_cacheListStore = nil;
     }
 }
 
-+ (NSString *)cachePathForKey:(NSString *)key {
++ (NSString *)RNCachingFolderPath {
     NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
-    NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:@"RNCaching"];
+    return [cachesPath stringByAppendingPathComponent:RNCachingFolderName];
+}
+
++ (NSString *)cachePathForKey:(NSString *)key {
+    NSString *offlineCachePath = [self RNCachingFolderPath];
     [[NSFileManager defaultManager] createDirectoryAtPath:offlineCachePath withIntermediateDirectories:YES attributes:nil error:nil];
     return [offlineCachePath stringByAppendingPathComponent:key];
 }
 
 + (NSString *)cacheDataPathForKey:(NSString *)key {
-    NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
-    NSString *offlineCachePath = [cachesPath stringByAppendingPathComponent:@"RNCaching/Data"];
+    NSString *offlineCachePath = [[self RNCachingFolderPath] stringByAppendingPathComponent:@"Data"];
     [[NSFileManager defaultManager] createDirectoryAtPath:offlineCachePath withIntermediateDirectories:YES attributes:nil error:nil];
     return [offlineCachePath stringByAppendingPathComponent:key];
 }
@@ -334,7 +337,8 @@ static RNCacheListStore *_cacheListStore = nil;
 
 + (BOOL)isURLInclude:(NSString *)URLStr {
     NSError *error = NULL;
-    for (NSString *pattern in [self includeHostPatterns]) {
+    NSArray *nonMutable = [NSArray arrayWithArray:[self includeHostPatterns]];
+    for (NSString *pattern in nonMutable) {
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
         NSTextCheckingResult *result = [regex firstMatchInString:URLStr options:NSMatchingWithoutAnchoringBounds range:NSMakeRange(0, URLStr.length)];
         if (result.numberOfRanges) {
@@ -368,11 +372,18 @@ static RNCacheListStore *_cacheListStore = nil;
 
     BOOL expired = YES;
 
-    NSNumber *time = [[RNCachingURLProtocol expireTime] valueForKey:mimeType];
+    NSString *foundKey = nil;
+    for (NSString *key in [[RNCachingURLProtocol expireTime] allKeys]) {
+        if ([[key lowercaseString] rangeOfString:[mimeType lowercaseString] options:NSCaseInsensitiveSearch | NSAnchoredSearch].location != NSNotFound) {
+            foundKey = key;
+            break;
+        }
+    }
+    NSNumber *time = [[RNCachingURLProtocol expireTime] valueForKey:foundKey];
     if (time) {
         NSTimeInterval delta = [[NSDate date] timeIntervalSinceDate:modifiedDate];
 
-        expired = (delta > [time intValue]);
+        expired = (delta > [time doubleValue]);
     }
 
     NSLog(@"[RNCachingURLProtocol] %@: %@", expired ? @"expired" : @"hit", [[[self request] URL] absoluteString]);
