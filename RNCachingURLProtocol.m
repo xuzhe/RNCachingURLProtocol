@@ -78,11 +78,19 @@ static RNCacheListStore *_cacheListStore = nil;
 + (NSMutableDictionary *)expireTime {
     if (_expireTime == nil) {
         _expireTime = [NSMutableDictionary dictionary];
+#ifdef IN_HOUSE
+        _expireTime[@"application/json"] = @(60 * 5); // 5 min
+        _expireTime[@"text/html"] = @(60 * 5); // 5 min
+        _expireTime[@"image/"] = @(60 * 10); // 10 min
+        _expireTime[@"video/"] = @(60 * 10); // 10 min
+        _expireTime[@"audio/"] = @(60 * 10); // 10 min
+#else
         _expireTime[@"application/json"] = @(60 * 30); // 30 min
         _expireTime[@"text/html"] = @(60 * 30); // 30 min
         _expireTime[@"image/"] = @(60 * 60 * 24 * 30); // 30 day
         _expireTime[@"video/"] = @(60 * 60 * 24 * 30); // 30 day
         _expireTime[@"audio/"] = @(60 * 60 * 24 * 30); // 30 day
+#endif
     }
     return _expireTime;
 }
