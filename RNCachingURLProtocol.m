@@ -551,4 +551,8 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
     [self performSelector:@selector(saveCacheDictionary) withObject:nil afterDelay:0.5];
 }
 
+- (void)dealloc {
+    dispatch_release(_queue);
+}
+
 @end
