@@ -238,11 +238,11 @@ static RNCacheListStore *_cacheListStore = nil;
                 [self closeInputStream:_inputStream];
                 
                 [[self client] URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed]; // we handle caching ourselves.
-                NSInputStream *iStream = [NSInputStream inputStreamWithFileAtPath:[[self class] cacheDataPathForRequest:[self request]]];
+                _inputStream = [NSInputStream inputStreamWithFileAtPath:[[self class] cacheDataPathForRequest:[self request]]];
                 // iStream is NSInputStream instance variable
-                [iStream setDelegate:self];
-                [iStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
-                [iStream open];
+                [_inputStream setDelegate:self];
+                [_inputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+                [_inputStream open];
             }
             return;
         }
