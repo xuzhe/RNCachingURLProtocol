@@ -382,7 +382,7 @@ static RNCacheListStore *_cacheListStore = nil;
 
     NSString *foundKey = nil;
     for (NSString *key in [[RNCachingURLProtocol expireTime] allKeys]) {
-        if ([[key lowercaseString] rangeOfString:[mimeType lowercaseString] options:NSCaseInsensitiveSearch | NSAnchoredSearch].location != NSNotFound) {
+        if ([[mimeType lowercaseString] rangeOfString:[key lowercaseString] options:NSCaseInsensitiveSearch | NSAnchoredSearch].location != NSNotFound) {
             foundKey = key;
             break;
         }
