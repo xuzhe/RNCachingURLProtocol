@@ -87,9 +87,9 @@ static RNCacheListStore *_cacheListStore = nil;
 #else
         _expireTime[@"application/json"] = @(60 * 30); // 30 min
         _expireTime[@"text/html"] = @(60 * 30); // 30 min
-        _expireTime[@"image/"] = @(60 * 60 * 24 * 30); // 30 day
-        _expireTime[@"video/"] = @(60 * 60 * 24 * 30); // 30 day
-        _expireTime[@"audio/"] = @(60 * 60 * 24 * 30); // 30 day
+        _expireTime[@"image/"] = @(60 * 60 * 24 * 14); // 14 day
+        _expireTime[@"video/"] = @(60 * 60 * 24 * 14); // 14 day
+        _expireTime[@"audio/"] = @(60 * 60 * 24 * 14); // 14 day
 #endif
     }
     return _expireTime;
