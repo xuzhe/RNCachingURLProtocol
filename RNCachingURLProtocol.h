@@ -60,6 +60,14 @@
 
 #import <Foundation/Foundation.h>
 
+@interface RNCacheListStore : NSObject
+- (id)initWithPath:(NSString *)path;
+- (void)setObject:(id)object forKey:(id)aKey;
+- (id)objectForKey:(id)aKey;
+- (NSArray *)removeObjectsOlderThan:(NSDate *)date userInfo:(NSMutableArray **)userInfoPtr;
+- (void)clear;
+@end
+
 @interface RNCachingURLProtocol : NSURLProtocol
 
 + (NSMutableDictionary *)expireTime;
@@ -74,15 +82,8 @@
 + (NSString *)cachePathForRequest:(NSURLRequest *)aRequest;
 + (NSString *)cacheDataPathForURL:(NSURL *)url;
 + (NSString *)cacheDataPathForRequest:(NSURLRequest *)aRequest;
++ (RNCacheListStore *)cacheListStore;
 
 - (BOOL) useCache;
 
-@end
-
-@interface RNCacheListStore : NSObject
-- (id)initWithPath:(NSString *)path;
-- (void)setObject:(id)object forKey:(id)aKey;
-- (id)objectForKey:(id)aKey;
-- (NSArray *)removeObjectsOlderThan:(NSDate *)date userInfo:(NSMutableArray **)userInfoPtr;
-- (void)clear;
 @end
