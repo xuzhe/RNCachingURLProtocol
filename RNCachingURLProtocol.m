@@ -75,6 +75,22 @@ static RNCacheListStore *_cacheListStore = nil;
     }
 }
 
++ (NSString *)appVersion {
+    return [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"];
+}
+
++ (NSString *)appBuildVersion {
+	return [[[NSBundle mainBundle] infoDictionary] objectForKey:(NSString *)kCFBundleVersionKey];
+}
+
++ (NSString *)appName {
+	NSString *name = [[[NSBundle mainBundle] localizedInfoDictionary] objectForKey:@"CFBundleDisplayName"];
+    if (!name) {
+        name = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleDisplayName"];
+    }
+    return name;
+}
+
 + (NSMutableDictionary *)expireTime {
     if (_expireTime == nil) {
         _expireTime = [NSMutableDictionary dictionary];
@@ -251,6 +267,14 @@ static RNCacheListStore *_cacheListStore = nil;
     NSMutableURLRequest *connectionRequest = [[self request] mutableCopyWorkaround];
     // we need to mark this request with our header so we know not to handle it in +[NSURLProtocol canInitWithRequest:].
     [connectionRequest setValue:@"" forHTTPHeaderField:RNCachingURLHeader];
+    [connectionRequest setValue:@"gzip" forHTTPHeaderField:@"Accept-Encoding"];
+    NSString *userAgent = [connectionRequest valueForHTTPHeaderField:@"User-Agent"];
+    [connectionRequest setValue:[[userAgent ? userAgent : @"" stringByAppendingFormat:@" %@/%@(%@)",
+                                  [[[RNCachingURLProtocol appName] componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsJoinedByString:@""],
+                                  [RNCachingURLProtocol appVersion], [RNCachingURLProtocol appBuildVersion]]
+                                 stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]
+             forHTTPHeaderField:@"User-Agent"];
+    
     NSURLConnection *connection = [NSURLConnection connectionWithRequest:connectionRequest
                                                                 delegate:self];
     [self setConnection:connection];
