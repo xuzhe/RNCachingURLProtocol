@@ -76,19 +76,40 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 + (NSString *)appVersion {
-    return [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"];
+    static NSString *appVersion = nil;
+    if (!appVersion) {
+        appVersion = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"];
+    }
+    return appVersion;
 }
 
 + (NSString *)appBuildVersion {
-	return [[[NSBundle mainBundle] infoDictionary] objectForKey:(NSString *)kCFBundleVersionKey];
+    static NSString *appBuildVersion = nil;
+    if (!appBuildVersion) {
+        appBuildVersion = [[[NSBundle mainBundle] infoDictionary] objectForKey:(NSString *)kCFBundleVersionKey];
+    }
+	return appBuildVersion;
 }
 
 + (NSString *)appName {
-	NSString *name = [[[NSBundle mainBundle] localizedInfoDictionary] objectForKey:@"CFBundleDisplayName"];
-    if (!name) {
-        name = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleDisplayName"];
+    static NSString *appName = nil;
+    if (!appName) {
+        appName = [[[NSBundle mainBundle] localizedInfoDictionary] objectForKey:@"CFBundleDisplayName"];
+        if (!appName) {
+            appName = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleDisplayName"];
+        }
     }
-    return name;
+    return appName;
+}
+
++ (NSString *)customizedUserAgent:(NSString *)originalUserAgent {
+    static NSString *customizedUserAgent = nil;
+    if (!customizedUserAgent) {
+        customizedUserAgent = [NSString stringWithFormat:@"%@/%@(%@)",
+                               [[[self appName] componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsJoinedByString:@""],
+                               [self appVersion], [self appBuildVersion]];
+    }
+    return (originalUserAgent ? [originalUserAgent stringByAppendingFormat:@" %@", customizedUserAgent] : customizedUserAgent);
 }
 
 + (NSMutableDictionary *)expireTime {
@@ -268,12 +289,7 @@ static RNCacheListStore *_cacheListStore = nil;
     // we need to mark this request with our header so we know not to handle it in +[NSURLProtocol canInitWithRequest:].
     [connectionRequest setValue:@"" forHTTPHeaderField:RNCachingURLHeader];
     
-    NSString *userAgent = [connectionRequest valueForHTTPHeaderField:@"User-Agent"];
-    [connectionRequest setValue:[[userAgent ? userAgent : @"" stringByAppendingFormat:@" %@/%@(%@)",
-                                  [[[RNCachingURLProtocol appName] componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsJoinedByString:@""],
-                                  [RNCachingURLProtocol appVersion], [RNCachingURLProtocol appBuildVersion]]
-                                 stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]
-             forHTTPHeaderField:@"User-Agent"];
+    [connectionRequest setValue:[RNCachingURLProtocol customizedUserAgent:[connectionRequest valueForHTTPHeaderField:@"User-Agent"]] forHTTPHeaderField:@"User-Agent"];
     
     NSURLConnection *connection = [NSURLConnection connectionWithRequest:connectionRequest
                                                                 delegate:self];
