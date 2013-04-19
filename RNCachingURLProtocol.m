@@ -267,7 +267,7 @@ static RNCacheListStore *_cacheListStore = nil;
     NSMutableURLRequest *connectionRequest = [[self request] mutableCopyWorkaround];
     // we need to mark this request with our header so we know not to handle it in +[NSURLProtocol canInitWithRequest:].
     [connectionRequest setValue:@"" forHTTPHeaderField:RNCachingURLHeader];
-    [connectionRequest setValue:@"gzip" forHTTPHeaderField:@"Accept-Encoding"];
+    
     NSString *userAgent = [connectionRequest valueForHTTPHeaderField:@"User-Agent"];
     [connectionRequest setValue:[[userAgent ? userAgent : @"" stringByAppendingFormat:@" %@/%@(%@)",
                                   [[[RNCachingURLProtocol appName] componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsJoinedByString:@""],
