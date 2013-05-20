@@ -47,6 +47,7 @@
 static NSString *RNCachingURLHeader = @"X-RNCache";
 static NSString *RNCachingPlistFile = @"RNCache.plist";
 static NSString *RNCachingFolderName = @"RNCaching";
+static BOOL _includeAllURLs = NO;
 
 @interface RNCachingURLProtocol () <NSURLConnectionDelegate, NSURLConnectionDataDelegate, NSStreamDelegate> {    //  iOS5-only
     NSOutputStream *_outputStream;
@@ -383,7 +384,14 @@ static RNCacheListStore *_cacheListStore = nil;
     }
 }
 
++ (void)setIncludeAllURLs:(BOOL)includeAllURLs {
+    _includeAllURLs = includeAllURLs;
+}
+
 + (BOOL)isURLInclude:(NSString *)URLStr {
+    if (_includeAllURLs) {
+        return YES;
+    }
     NSError *error = NULL;
     NSArray *nonMutable = [NSArray arrayWithArray:[self includeHostPatterns]];
     for (NSString *pattern in nonMutable) {

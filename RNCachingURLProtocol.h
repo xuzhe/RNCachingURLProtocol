@@ -73,7 +73,7 @@
 + (NSMutableDictionary *)expireTime;
 
 + (NSMutableArray *)includeHostPatterns;
-
++ (void)setIncludeAllURLs:(BOOL)includeAllURLs;
 + (void)removeCache;
 + (void)removeCacheOlderThan:(NSDate *)date;
 + (NSData *)dataForURL:(NSString *)url;
