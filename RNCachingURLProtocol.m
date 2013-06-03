@@ -29,12 +29,17 @@
 #import "Reachability.h"
 #import "NSString+SHA.h"
 
+
+#define WORKAROUND_MUTABLE_COPY_LEAK  TRUE
+
+#if WORKAROUND_MUTABLE_COPY_LEAK
 // required to workaround http://openradar.appspot.com/11596316
 @interface NSURLRequest (MutableCopyWorkaround)
 
 - (id)mutableCopyWorkaround;
 
 @end
+#endif
 
 @interface RNCachedData : NSObject <NSCoding>
 @property(nonatomic, readwrite, strong) NSURLResponse *response;
@@ -285,8 +290,14 @@ static RNCacheListStore *_cacheListStore = nil;
             return;
         }
     }
-
-    NSMutableURLRequest *connectionRequest = [[self request] mutableCopyWorkaround];
+    
+    NSMutableURLRequest *connectionRequest =
+#if WORKAROUND_MUTABLE_COPY_LEAK
+    [[self request] mutableCopyWorkaround];
+#else
+    [[self request] mutableCopy];
+#endif
+    
     // we need to mark this request with our header so we know not to handle it in +[NSURLProtocol canInitWithRequest:].
     [connectionRequest setValue:@"" forHTTPHeaderField:RNCachingURLHeader];
     
@@ -306,7 +317,12 @@ static RNCacheListStore *_cacheListStore = nil;
 - (NSURLRequest *)connection:(NSURLConnection *)connection willSendRequest:(NSURLRequest *)request redirectResponse:(NSURLResponse *)response {
 // Thanks to Nick Dowell https://gist.github.com/1885821
     if (response != nil) {
-        NSMutableURLRequest *redirectableRequest = [request mutableCopyWorkaround];
+        NSMutableURLRequest *redirectableRequest =
+#if WORKAROUND_MUTABLE_COPY_LEAK
+        [request mutableCopyWorkaround];
+#else
+        [request mutableCopy];
+#endif
         // We need to remove our header so we know to handle this request and cache it.
         // There are 3 requests in flight: the outside request, which we handled, the internal request,
         // which we marked with our header, and the redirectableRequest, which we're modifying here.
@@ -496,6 +512,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 
 @end
 
+#if WORKAROUND_MUTABLE_COPY_LEAK
 @implementation NSURLRequest (MutableCopyWorkaround)
 
 - (id)mutableCopyWorkaround {
@@ -511,6 +528,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 }
 
 @end
+#endif
 
 #pragma mark - RNCacheListStore
 @implementation RNCacheListStore {
