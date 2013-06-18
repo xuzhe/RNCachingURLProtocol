@@ -60,6 +60,8 @@
 
 #import <Foundation/Foundation.h>
 
+#define kAllMIMETypesKey       @"ALL/TYPES"
+
 @interface RNCacheListStore : NSObject
 - (id)initWithPath:(NSString *)path;
 - (void)setObject:(id)object forKey:(id)aKey;
@@ -70,7 +72,8 @@
 
 @interface RNCachingURLProtocol : NSURLProtocol
 
-+ (NSMutableDictionary *)expireTime;
++ (NSDictionary *)expireTime;
++ (void)setExpireTime:(NSDictionary *)expireTime;
 
 + (NSMutableArray *)includeHostPatterns;
 + (void)setIncludeAllURLs:(BOOL)includeAllURLs;

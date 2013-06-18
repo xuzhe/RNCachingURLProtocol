@@ -66,7 +66,7 @@ static BOOL _includeAllURLs = NO;
 - (void)appendData:(NSData *)data;
 @end
 
-static NSMutableDictionary *_expireTime = nil;
+static NSDictionary *_expireTime = nil;
 static NSMutableArray *_includeHosts = nil;
 static RNCacheListStore *_cacheListStore = nil;
 
@@ -118,22 +118,27 @@ static RNCacheListStore *_cacheListStore = nil;
     return (originalUserAgent ? [originalUserAgent stringByAppendingFormat:@" %@", customizedUserAgent] : customizedUserAgent);
 }
 
-+ (NSMutableDictionary *)expireTime {
++ (void)setExpireTime:(NSDictionary *)expireTime {
+    _expireTime = expireTime;
+}
+
++ (NSDictionary *)expireTime {
     if (_expireTime == nil) {
-        _expireTime = [NSMutableDictionary dictionary];
+        _expireTime = @{
 #ifdef IN_HOUSE
-        _expireTime[@"application/json"] = @(60 * 5); // 5 min
-        _expireTime[@"text/html"] = @(60 * 5); // 5 min
-        _expireTime[@"image/"] = @(60 * 10); // 10 min
-        _expireTime[@"video/"] = @(60 * 10); // 10 min
-        _expireTime[@"audio/"] = @(60 * 10); // 10 min
+         @"application/json" : @(60.0 * 5) // 5 min
+        ,@"text/html" : @(60.0 * 5) // 5 min
+        ,@"image/" : @(60.0 * 10) // 10 min
+        ,@"video/" : @(60.0 * 10) // 10 min
+        ,@"audio/" : @(60.0 * 10) // 10 min
 #else
-        _expireTime[@"application/json"] = @(60 * 30); // 30 min
-        _expireTime[@"text/html"] = @(60 * 30); // 30 min
-        _expireTime[@"image/"] = @(60 * 60 * 24 * 14); // 14 day
-        _expireTime[@"video/"] = @(60 * 60 * 24 * 14); // 14 day
-        _expireTime[@"audio/"] = @(60 * 60 * 24 * 14); // 14 day
+         @"application/json" : @(60.0 * 30) // 30 min
+        ,@"text/html" : @(60.0 * 30) // 30 min
+        ,@"image/" : @(60.0 * 60 * 24 * 14) // 14 day
+        ,@"video/" : @(60.0 * 60 * 24 * 14) // 14 day
+        ,@"audio/" : @(60.0 * 60 * 24 * 14) // 14 day
 #endif
+        };
     }
     return _expireTime;
 }
@@ -446,18 +451,20 @@ static RNCacheListStore *_cacheListStore = nil;
 
     NSString *foundKey = nil;
     for (NSString *key in [[RNCachingURLProtocol expireTime] allKeys]) {
-        if ([[mimeType lowercaseString] rangeOfString:[key lowercaseString] options:NSCaseInsensitiveSearch | NSAnchoredSearch].location != NSNotFound) {
+        if ([mimeType rangeOfString:key options:NSCaseInsensitiveSearch | NSAnchoredSearch].location != NSNotFound) {
             foundKey = key;
             break;
         }
     }
+    if (!foundKey) {
+        foundKey = kAllMIMETypesKey;
+    }
     NSNumber *time = [[RNCachingURLProtocol expireTime] valueForKey:foundKey];
     if (time) {
         NSTimeInterval delta = [[NSDate date] timeIntervalSinceDate:modifiedDate];
-
         expired = (delta > [time doubleValue]);
     }
-
+    
     NSLog(@"[RNCachingURLProtocol] %@: %@", expired ? @"expired" : @"hit", [[[self request] URL] absoluteString]);
     return expired;
 }
