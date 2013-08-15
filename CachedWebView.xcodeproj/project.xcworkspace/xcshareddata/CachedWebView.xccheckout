@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>4CF55A8A-E299-4975-920F-9A8072943910</string>
+	<key>IDESourceControlProjectName</key>
+	<string>CachedWebView</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>DB465F4B-41B1-40D1-9871-C263DE15C3D5</key>
+		<string>ssh://github.com/rjyo/RNCachingURLProtocol.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>CachedWebView.xcodeproj/project.xcworkspace</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>DB465F4B-41B1-40D1-9871-C263DE15C3D5</key>
+		<string>../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>ssh://github.com/rjyo/RNCachingURLProtocol.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>110</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>DB465F4B-41B1-40D1-9871-C263DE15C3D5</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>DB465F4B-41B1-40D1-9871-C263DE15C3D5</string>
+			<key>IDESourceControlWCCName</key>
+			<string>RNCachingURLProtocol</string>
+		</dict>
+	</array>
+</dict>
+</plist>

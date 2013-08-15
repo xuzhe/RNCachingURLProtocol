@@ -397,8 +397,7 @@ static RNCacheListStore *_cacheListStore = nil;
     if (!([self isHostIncluded] && [[[self request] HTTPMethod] isEqualToString:@"GET"])) {
         return NO;
     }
-
-    if ([[Reachability reachabilityWithHostName:[[[self request] URL] host]] currentReachabilityStatus] == NotReachable) {
+    if ([[Reachability reachabilityWithHostname:[[[self request] URL] host]] currentReachabilityStatus] == NotReachable) {
         return YES;
     } else {
         return ![self isCacheExpired] && [self isCacheDataExists];
@@ -624,8 +623,10 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
     [self performSelector:@selector(saveCacheDictionary) withObject:nil afterDelay:0.5];
 }
 
+#if NEEDS_DISPATCH_RETAIN_RELEASE
 - (void)dealloc {
     dispatch_release(_queue);
 }
+#endif
 
 @end
