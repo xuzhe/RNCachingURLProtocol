@@ -86,6 +86,7 @@
 + (NSString *)cacheDataPathForURL:(NSURL *)url;
 + (NSString *)cacheDataPathForRequest:(NSURLRequest *)aRequest;
 + (RNCacheListStore *)cacheListStore;
++ (void)setCustmizedUserAgentPlugin:(NSString *)plugin;
 
 - (BOOL) useCache;
 

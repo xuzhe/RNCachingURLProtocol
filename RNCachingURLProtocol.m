@@ -53,6 +53,7 @@ static NSString *RNCachingURLHeader = @"X-RNCache";
 static NSString *RNCachingPlistFile = @"RNCache.plist";
 static NSString *RNCachingFolderName = @"RNCaching";
 static BOOL _includeAllURLs = NO;
+static NSString *_customizedUserAgentPlugin = nil;
 
 @interface RNCachingURLProtocol () <NSURLConnectionDelegate, NSURLConnectionDataDelegate, NSStreamDelegate> {    //  iOS5-only
     NSOutputStream *_outputStream;
@@ -110,12 +111,19 @@ static RNCacheListStore *_cacheListStore = nil;
 
 + (NSString *)customizedUserAgent:(NSString *)originalUserAgent {
     static NSString *customizedUserAgent = nil;
-    if (!customizedUserAgent) {
+    if (_customizedUserAgentPlugin) {
+        customizedUserAgent = _customizedUserAgentPlugin;
+    } else if (!customizedUserAgent) {
         customizedUserAgent = [NSString stringWithFormat:@"%@/%@(%@)",
                                [[[self appName] componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsJoinedByString:@""],
                                [self appVersion], [self appBuildVersion]];
     }
-    return (originalUserAgent ? [originalUserAgent stringByAppendingFormat:@" %@", customizedUserAgent] : customizedUserAgent);
+    NSString *temp = (originalUserAgent ? [originalUserAgent stringByAppendingFormat:@" %@", customizedUserAgent] : customizedUserAgent);
+    return (temp ? temp : @"");
+}
+
++ (void)setCustmizedUserAgentPlugin:(NSString *)plugin {
+    _customizedUserAgentPlugin = plugin;
 }
 
 + (void)setExpireTime:(NSDictionary *)expireTime {
