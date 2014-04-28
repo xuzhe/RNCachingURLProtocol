@@ -49,11 +49,12 @@
 @property(nonatomic, readwrite, strong) NSString *filePath;
 @end
 
-static NSString *RNCachingURLHeader = @"X-RNCache";
-static NSString *RNCachingPlistFile = @"RNCache.plist";
-static NSString *RNCachingFolderName = @"RNCaching";
-static BOOL _includeAllURLs = NO;
-static NSString *_customizedUserAgentPlugin = nil;
+static NSString *const RNCachingURLHeader = @"X-RNCache";
+static NSString *const RNCachingPlistFile = @"RNCache.plist";
+static NSString *const RNCachingFolderName = @"RNCaching";
+static BOOL __includeAllURLs = NO;
+static BOOL __alwaysUseCacheFirst = NO;
+static NSString *__customizedUserAgentPlugin = nil;
 
 @interface RNCachingURLProtocol () <NSURLConnectionDelegate, NSURLConnectionDataDelegate, NSStreamDelegate> {    //  iOS5-only
     NSOutputStream *_outputStream;
@@ -111,8 +112,8 @@ static RNCacheListStore *_cacheListStore = nil;
 
 + (NSString *)customizedUserAgent:(NSString *)originalUserAgent {
     static NSString *customizedUserAgent = nil;
-    if (_customizedUserAgentPlugin) {
-        customizedUserAgent = _customizedUserAgentPlugin;
+    if (__customizedUserAgentPlugin) {
+        customizedUserAgent = __customizedUserAgentPlugin;
     } else if (!customizedUserAgent) {
         customizedUserAgent = [NSString stringWithFormat:@"%@/%@(%@)",
                                [[[self appName] componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsJoinedByString:@""],
@@ -123,7 +124,7 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 + (void)setCustmizedUserAgentPlugin:(NSString *)plugin {
-    _customizedUserAgentPlugin = plugin;
+    __customizedUserAgentPlugin = plugin;
 }
 
 + (void)setExpireTime:(NSDictionary *)expireTime {
@@ -224,7 +225,11 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 + (NSString *)cacheDataPathForURL:(NSURL *)url {
-    return [self cacheDataPathForKey:[[[url absoluteString] sha1] stringByAppendingPathExtension:[url pathExtension]]];
+    NSString *cachePath = [[url absoluteString] sha1];
+    if ([[url pathExtension] length] > 0) {
+        cachePath = [cachePath stringByAppendingPathExtension:[url pathExtension]];
+    }
+    return [self cacheDataPathForKey:cachePath];
 }
 
 + (NSString *)cachePathForRequest:(NSURLRequest *)aRequest {
@@ -402,6 +407,9 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (BOOL)useCache {
+    if (__alwaysUseCacheFirst) {
+        return YES;
+    }
     if (!([self isHostIncluded] && [[[self request] HTTPMethod] isEqualToString:@"GET"])) {
         return NO;
     }
@@ -413,11 +421,15 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 + (void)setIncludeAllURLs:(BOOL)includeAllURLs {
-    _includeAllURLs = includeAllURLs;
+    __includeAllURLs = includeAllURLs;
+}
+
++ (void)setAlwaysUseCacheFirst:(BOOL)alwaysUseCacheFirst {
+    __alwaysUseCacheFirst = alwaysUseCacheFirst;
 }
 
 + (BOOL)isURLInclude:(NSString *)URLStr {
-    if (_includeAllURLs) {
+    if (__includeAllURLs) {
         return YES;
     }
     NSError *error = NULL;
