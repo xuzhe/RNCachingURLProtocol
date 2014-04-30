@@ -407,11 +407,11 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (BOOL)useCache {
-    if (__alwaysUseCacheFirst) {
-        return YES;
-    }
     if (!([self isHostIncluded] && [[[self request] HTTPMethod] isEqualToString:@"GET"])) {
         return NO;
+    }
+    if (__alwaysUseCacheFirst) {
+        return YES;
     }
     if ([[Reachability reachabilityWithHostname:[[[self request] URL] host]] currentReachabilityStatus] == NotReachable) {
         return YES;
