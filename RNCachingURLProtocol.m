@@ -272,8 +272,8 @@ static RNCacheListStore *_cacheListStore = nil;
             if (len) {
                 NSData *data = [NSData dataWithBytes:(const void *)buf length:len];
                 [[self client] URLProtocol:self didLoadData:data];
-            } else {
-                NSLog(@"no buffer!");
+//            } else {
+//                NSLog(@"no buffer!");
             }
             break;
         }
