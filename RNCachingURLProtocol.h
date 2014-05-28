@@ -77,7 +77,7 @@
 
 + (NSMutableArray *)includeHostPatterns;
 + (void)setIncludeAllURLs:(BOOL)includeAllURLs;
-+ (void)setAlwaysUseCacheFirst:(BOOL)alwaysUseCacheFirst;
++ (void)setAlwaysUseCache:(BOOL)alwaysUseCache;
 + (void)removeCache;
 + (void)removeCacheOlderThan:(NSDate *)date;
 + (NSData *)dataForURL:(NSString *)url;

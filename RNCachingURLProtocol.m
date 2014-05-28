@@ -53,7 +53,7 @@ static NSString *const RNCachingURLHeader = @"X-RNCache";
 static NSString *const RNCachingPlistFile = @"RNCache.plist";
 static NSString *const RNCachingFolderName = @"RNCaching";
 static BOOL __includeAllURLs = NO;
-static BOOL __alwaysUseCacheFirst = NO;
+static BOOL __alwaysUseCache = NO;
 static NSString *__customizedUserAgentPlugin = nil;
 
 @interface RNCachingURLProtocol () <NSURLConnectionDelegate, NSURLConnectionDataDelegate, NSStreamDelegate> {    //  iOS5-only
@@ -273,7 +273,7 @@ static RNCacheListStore *_cacheListStore = nil;
                 NSData *data = [NSData dataWithBytes:(const void *)buf length:len];
                 [[self client] URLProtocol:self didLoadData:data];
             } else {
-//                NSLog(@"no buffer!");
+                NSLog(@"no buffer!");
             }
             break;
         }
@@ -288,8 +288,7 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (void)startLoading {
-    BOOL useCache = [self useCache];
-    if (useCache || __alwaysUseCacheFirst) {
+    if ([self useCache]) {
         RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:[[self class] cachePathForRequest:[self request]]];
         if (cache) {
             NSURLResponse *response = [cache response];
@@ -306,11 +305,7 @@ static RNCacheListStore *_cacheListStore = nil;
                 [_inputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
                 [_inputStream open];
             }
-            if (useCache) {
-                return;
-            } else {
-                NSLog(@"Always Use Cache");
-            }
+            return;
         }
     }
     
@@ -415,6 +410,9 @@ static RNCacheListStore *_cacheListStore = nil;
     if (!([self isHostIncluded] && [[[self request] HTTPMethod] isEqualToString:@"GET"])) {
         return NO;
     }
+    if (__alwaysUseCache) {
+        return YES;
+    }
     if ([[Reachability reachabilityWithHostname:[[[self request] URL] host]] currentReachabilityStatus] == NotReachable) {
         return YES;
     } else {
@@ -426,8 +424,8 @@ static RNCacheListStore *_cacheListStore = nil;
     __includeAllURLs = includeAllURLs;
 }
 
-+ (void)setAlwaysUseCacheFirst:(BOOL)alwaysUseCacheFirst {
-    __alwaysUseCacheFirst = alwaysUseCacheFirst;
++ (void)setAlwaysUseCache:(BOOL)alwaysUseCache {
+    __alwaysUseCache = alwaysUseCache;
 }
 
 + (BOOL)isURLInclude:(NSString *)URLStr {
