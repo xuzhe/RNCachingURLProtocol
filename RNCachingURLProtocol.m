@@ -137,12 +137,14 @@ static RNCacheListStore *_cacheListStore = nil;
 #ifdef IN_HOUSE
          @"application/json" : @(60.0 * 5) // 5 min
         ,@"text/html" : @(60.0 * 5) // 5 min
+        ,@"text/css" : @(60.0 * 5) // 5 min
         ,@"image/" : @(60.0 * 10) // 10 min
         ,@"video/" : @(60.0 * 10) // 10 min
         ,@"audio/" : @(60.0 * 10) // 10 min
 #else
          @"application/json" : @(60.0 * 30) // 30 min
         ,@"text/html" : @(60.0 * 30) // 30 min
+        ,@"text/css" : @(60.0 * 30) // 30 min
         ,@"image/" : @(60.0 * 60 * 24 * 14) // 14 day
         ,@"video/" : @(60.0 * 60 * 24 * 14) // 14 day
         ,@"audio/" : @(60.0 * 60 * 24 * 14) // 14 day
@@ -467,9 +469,9 @@ static RNCacheListStore *_cacheListStore = nil;
     NSString *mimeType = meta[1];
 
     BOOL expired = YES;
-
+    NSDictionary *expireTime = [RNCachingURLProtocol expireTime];
     NSString *foundKey = nil;
-    for (NSString *key in [[RNCachingURLProtocol expireTime] allKeys]) {
+    for (NSString *key in [expireTime allKeys]) {
         if ([mimeType rangeOfString:key options:NSCaseInsensitiveSearch | NSAnchoredSearch].location != NSNotFound) {
             foundKey = key;
             break;
@@ -478,7 +480,7 @@ static RNCacheListStore *_cacheListStore = nil;
     if (!foundKey) {
         foundKey = kAllMIMETypesKey;
     }
-    NSNumber *time = [[RNCachingURLProtocol expireTime] valueForKey:foundKey];
+    NSNumber *time = [expireTime valueForKey:foundKey];
     if (time) {
         NSTimeInterval delta = [[NSDate date] timeIntervalSinceDate:modifiedDate];
         expired = (delta > [time doubleValue]);
