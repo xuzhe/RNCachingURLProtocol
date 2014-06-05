@@ -30,7 +30,7 @@
 #import "NSString+SHA.h"
 
 
-#define WORKAROUND_MUTABLE_COPY_LEAK  TRUE
+#define WORKAROUND_MUTABLE_COPY_LEAK  FALSE
 
 #if WORKAROUND_MUTABLE_COPY_LEAK
 // required to workaround http://openradar.appspot.com/11596316
@@ -69,7 +69,9 @@ static NSString *__customizedUserAgentPlugin = nil;
 @end
 
 static NSDictionary *_expireTime = nil;
-static NSMutableArray *_includeHosts = nil;
+static NSArray *_includeHosts = nil;
+static NSArray *_hostsBlackList = nil;
+static NSArray *_fileTypeBlackList = nil;
 static RNCacheListStore *_cacheListStore = nil;
 
 @implementation RNCachingURLProtocol
@@ -154,12 +156,37 @@ static RNCacheListStore *_cacheListStore = nil;
     return _expireTime;
 }
 
-+ (NSMutableArray *)includeHostPatterns {
-    if (_includeHosts == nil) {
-        _includeHosts = [NSMutableArray array];
-    }
-
++ (NSArray *)includeHosts {
     return _includeHosts;
+}
+
++ (void)setIncludeHosts:(NSArray *)hosts {
+    if ([_includeHosts isEqual:hosts]) {
+        return;
+    }
+    _includeHosts = hosts;
+}
+
++ (NSArray *)fileTypeBlackList {
+    return _fileTypeBlackList;
+}
+
++ (void)setFileTypeBlackList:(NSArray *)blacklist {
+    if ([_fileTypeBlackList isEqual:blacklist]) {
+        return;
+    }
+    _fileTypeBlackList = blacklist;
+}
+
++ (NSArray *)hostsBlackList {
+    return _hostsBlackList;
+}
+
++ (void)setHostsBlackList:(NSArray *)blacklist {
+    if ([_hostsBlackList isEqual:blacklist]) {
+        return;
+    }
+    _hostsBlackList = blacklist;
 }
 
 + (BOOL)canInitWithRequest:(NSURLRequest *)request {
@@ -269,9 +296,9 @@ static RNCacheListStore *_cacheListStore = nil;
     switch (eventCode) {
         case NSStreamEventHasBytesAvailable: {
             uint8_t buf[1024];
-            unsigned int len = 0;
+            NSInteger len = 0;
             len = [(NSInputStream *)stream read:buf maxLength:1024];
-            if (len) {
+            if (len > 0) {
                 NSData *data = [NSData dataWithBytes:(const void *)buf length:len];
                 [[self client] URLProtocol:self didLoadData:data];
 //            } else {
@@ -321,7 +348,8 @@ static RNCacheListStore *_cacheListStore = nil;
     // we need to mark this request with our header so we know not to handle it in +[NSURLProtocol canInitWithRequest:].
     [connectionRequest setValue:@"" forHTTPHeaderField:RNCachingURLHeader];
     
-    [connectionRequest setValue:[RNCachingURLProtocol customizedUserAgent:[connectionRequest valueForHTTPHeaderField:@"User-Agent"]] forHTTPHeaderField:@"User-Agent"];
+    static NSString *userAgentKey = @"User-Agent";
+    [connectionRequest setValue:[RNCachingURLProtocol customizedUserAgent:[connectionRequest valueForHTTPHeaderField:userAgentKey]] forHTTPHeaderField:userAgentKey];
     
     NSURLConnection *connection = [NSURLConnection connectionWithRequest:connectionRequest
                                                                 delegate:self];
@@ -430,13 +458,9 @@ static RNCacheListStore *_cacheListStore = nil;
     __alwaysUseCache = alwaysUseCache;
 }
 
-+ (BOOL)isURLInclude:(NSString *)URLStr {
-    if (__includeAllURLs) {
-        return YES;
-    }
++ (BOOL)isURLInclude:(NSString *)URLStr inArray:(NSArray *)array {
     NSError *error = NULL;
-    NSArray *nonMutable = [NSArray arrayWithArray:[self includeHostPatterns]];
-    for (NSString *pattern in nonMutable) {
+    for (NSString *pattern in array) {
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
         NSTextCheckingResult *result = [regex firstMatchInString:URLStr options:NSMatchingWithoutAnchoringBounds range:NSMakeRange(0, URLStr.length)];
         if (result.numberOfRanges) {
@@ -446,6 +470,22 @@ static RNCacheListStore *_cacheListStore = nil;
     }
     
     NSLog(@"[RNCachingURLProtocol] NOT include: %@", URLStr);
+    return NO;
+
+}
+
++ (BOOL)isURLInclude:(NSString *)URLStr {
+    if (__includeAllURLs) {
+        return YES;
+    }
+    return [self isURLInclude:URLStr inArray:[self includeHosts]];
+}
+
++ (BOOL)isFileTypeInBlackList:(NSString *)fileType {
+    return NO;
+}
+
++ (BOOL)isURLInBlackList:(NSString *)URLStr {
     return NO;
 }
 
@@ -642,7 +682,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 
 - (void)saveAfterDelay {
     [NSObject cancelPreviousPerformRequestsWithTarget:self selector:@selector(saveCacheDictionary) object:nil];
-    [self performSelector:@selector(saveCacheDictionary) withObject:nil afterDelay:0.5];
+    [self performSelector:@selector(saveCacheDictionary) withObject:nil afterDelay:1.0];
 }
 
 #if NEEDS_DISPATCH_RETAIN_RELEASE

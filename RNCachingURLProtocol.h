@@ -75,7 +75,13 @@
 + (NSDictionary *)expireTime;
 + (void)setExpireTime:(NSDictionary *)expireTime;
 
-+ (NSMutableArray *)includeHostPatterns;
++ (NSArray *)includeHosts;
++ (NSArray *)fileTypeBlackList;
++ (NSArray *)hostsBlackList;
++ (void)setIncludeHosts:(NSArray *)hosts;
++ (void)setFileTypeBlackList:(NSArray *)blacklist;
++ (void)setHostsBlackList:(NSArray *)blacklist;
+
 + (void)setIncludeAllURLs:(BOOL)includeAllURLs;
 + (void)setAlwaysUseCache:(BOOL)alwaysUseCache;
 + (void)removeCache;
