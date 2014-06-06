@@ -353,7 +353,7 @@ static RNCacheListStore *_cacheListStore = nil;
     
     NSURLConnection *connection = [NSURLConnection connectionWithRequest:connectionRequest
                                                                 delegate:self];
-    [self setConnection:connection];
+    self.connection = connection;
 }
 
 - (void)stopLoading {
@@ -384,6 +384,8 @@ static RNCacheListStore *_cacheListStore = nil;
             [cache setResponse:response];
             [cache setFilePath:[[self class] cacheDataPathForRequest:[self request]]];
             [cache setRedirectRequest:redirectableRequest];
+            [[[self class] cacheListStore] setObject:@[[NSDate date], [self response].MIMEType, [cache filePath]] forKey:cachePath];
+            
             [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
         }
         [[self client] URLProtocol:self wasRedirectedToRequest:redirectableRequest redirectResponse:response];
@@ -420,7 +422,8 @@ static RNCacheListStore *_cacheListStore = nil;
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection {
     [[self client] URLProtocolDidFinishLoading:self];
 
-    if (_isURLInclude) {
+    if (_isURLInclude &&
+        ([[self response] isKindOfClass:[NSHTTPURLResponse class]] && [(NSHTTPURLResponse *)[self response] statusCode] == 200)) {
         NSString *cachePath = [[self class] cachePathForRequest:[self request]];
         RNCachedData *cache = [RNCachedData new];
         [cache setResponse:[self response]];
@@ -526,7 +529,7 @@ static RNCacheListStore *_cacheListStore = nil;
         expired = (delta > [time doubleValue]);
     }
     
-    NSLog(@"[RNCachingURLProtocol] %@: %@", expired ? @"expired" : @"hit", [[[self request] URL] absoluteString]);
+    NSLog(@"[%@] %@: %@", [[self class] description], expired ? @"expired" : @"hit", [[[self request] URL] absoluteString]);
     return expired;
 }
 
