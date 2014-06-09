@@ -136,21 +136,11 @@ static RNCacheListStore *_cacheListStore = nil;
 + (NSDictionary *)expireTime {
     if (_expireTime == nil) {
         _expireTime = @{
-#ifdef IN_HOUSE
-         @"application/json" : @(60.0 * 5) // 5 min
-        ,@"text/html" : @(60.0 * 5) // 5 min
-        ,@"text/css" : @(60.0 * 5) // 5 min
-        ,@"image/" : @(60.0 * 10) // 10 min
-        ,@"video/" : @(60.0 * 10) // 10 min
-        ,@"audio/" : @(60.0 * 10) // 10 min
-#else
-         @"application/json" : @(60.0 * 30) // 30 min
-        ,@"text/html" : @(60.0 * 30) // 30 min
+         @"application/javascript" : @(60.0 * 30) // 30 min
         ,@"text/css" : @(60.0 * 30) // 30 min
         ,@"image/" : @(60.0 * 60 * 24 * 14) // 14 day
         ,@"video/" : @(60.0 * 60 * 24 * 14) // 14 day
         ,@"audio/" : @(60.0 * 60 * 24 * 14) // 14 day
-#endif
         };
     }
     return _expireTime;
@@ -301,8 +291,6 @@ static RNCacheListStore *_cacheListStore = nil;
             if (len > 0) {
                 NSData *data = [NSData dataWithBytes:(const void *)buf length:len];
                 [[self client] URLProtocol:self didLoadData:data];
-//            } else {
-//                NSLog(@"no buffer!");
             }
             break;
         }
@@ -467,12 +455,9 @@ static RNCacheListStore *_cacheListStore = nil;
         NSRegularExpression *regex = [NSRegularExpression regularExpressionWithPattern:pattern options:NSRegularExpressionCaseInsensitive error:&error];
         NSTextCheckingResult *result = [regex firstMatchInString:URLStr options:NSMatchingWithoutAnchoringBounds range:NSMakeRange(0, URLStr.length)];
         if (result.numberOfRanges) {
-            NSLog(@"[RNCachingURLProtocol] include: %@", URLStr);
             return YES;
         }
     }
-    
-    NSLog(@"[RNCachingURLProtocol] NOT include: %@", URLStr);
     return NO;
 
 }
@@ -484,18 +469,46 @@ static RNCacheListStore *_cacheListStore = nil;
     return [self isURLInclude:URLStr inArray:[self includeHosts]];
 }
 
-+ (BOOL)isFileTypeInBlackList:(NSString *)fileType {
++ (BOOL)isFileTypeInBlackList:(NSString *)ext {
+    if (ext && [ext length] > 0) {
+        for (NSString *fileType in [self fileTypeBlackList]) {
+            if ([[fileType lowercaseString] isEqualToString:ext]) {
+                return YES;
+            }
+        }
+    }
     return NO;
 }
 
++ (BOOL)isURLFileTypeInBlackList:(NSString *)URLStr {
+    NSURL *URL = [NSURL URLWithString:URLStr];
+    NSString *ext = [[[URL path] pathExtension] lowercaseString];
+    return [self isFileTypeInBlackList:ext];
+}
+
 + (BOOL)isURLInBlackList:(NSString *)URLStr {
-    return NO;
+    return [self isURLInclude:URLStr inArray:[self hostsBlackList]];
 }
 
 - (BOOL)isHostIncluded {
     NSString *string = [[[self request] URL] absoluteString];
-    _isURLInclude = [RNCachingURLProtocol isURLInclude:string];
-    return _isURLInclude;
+    BOOL isURLInclude = [RNCachingURLProtocol isURLInclude:string];
+    if (isURLInclude) {
+        NSLog(@"[RNCachingURLProtocol] include: %@", string);
+        isURLInclude = ![RNCachingURLProtocol isURLInBlackList:string];
+        if (isURLInclude) {
+            isURLInclude = ![RNCachingURLProtocol isURLFileTypeInBlackList:string];
+            if (!isURLInclude) {
+                NSLog(@"[RNCachingURLProtocol] in filetype blacklist: %@", string);
+            }
+        } else {
+            NSLog(@"[RNCachingURLProtocol] in blacklist: %@", string);
+        }
+    } else {
+        NSLog(@"[RNCachingURLProtocol] NOT include: %@", string);
+    }
+    _isURLInclude = isURLInclude;
+    return isURLInclude;
 }
 
 - (NSArray *)cacheMeta {
