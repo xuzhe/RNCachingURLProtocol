@@ -101,27 +101,11 @@ static RNCacheListStore *_cacheListStore = nil;
 	return appBuildVersion;
 }
 
-+ (NSString *)appName {
-    static NSString *appName = nil;
-    if (!appName) {
-        appName = [[[NSBundle mainBundle] localizedInfoDictionary] objectForKey:@"CFBundleDisplayName"];
-        if (!appName) {
-            appName = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleDisplayName"];
-        }
-    }
-    return appName;
-}
-
 + (NSString *)customizedUserAgent:(NSString *)originalUserAgent {
-    static NSString *customizedUserAgent = nil;
-    if (__customizedUserAgentPlugin) {
-        customizedUserAgent = __customizedUserAgentPlugin;
-    } else if (!customizedUserAgent) {
-        customizedUserAgent = [NSString stringWithFormat:@"%@/%@(%@)",
-                               [[[self appName] componentsSeparatedByCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]] componentsJoinedByString:@""],
-                               [self appVersion], [self appBuildVersion]];
+    if (!__customizedUserAgentPlugin) {
+        return nil;
     }
-    NSString *temp = (originalUserAgent ? [originalUserAgent stringByAppendingFormat:@" %@", customizedUserAgent] : customizedUserAgent);
+    NSString *temp = (originalUserAgent ? [originalUserAgent stringByAppendingFormat:@" %@", __customizedUserAgentPlugin] : __customizedUserAgentPlugin);
     return (temp ? temp : @"");
 }
 
@@ -337,7 +321,10 @@ static RNCacheListStore *_cacheListStore = nil;
     [connectionRequest setValue:@"" forHTTPHeaderField:RNCachingURLHeader];
     
     static NSString *userAgentKey = @"User-Agent";
-    [connectionRequest setValue:[RNCachingURLProtocol customizedUserAgent:[connectionRequest valueForHTTPHeaderField:userAgentKey]] forHTTPHeaderField:userAgentKey];
+    NSString *customizedUserAgent = [RNCachingURLProtocol customizedUserAgent:[connectionRequest valueForHTTPHeaderField:userAgentKey]];
+    if (customizedUserAgent) {
+        [connectionRequest setValue:customizedUserAgent forHTTPHeaderField:userAgentKey];
+    }
     
     NSURLConnection *connection = [NSURLConnection connectionWithRequest:connectionRequest
                                                                 delegate:self];
