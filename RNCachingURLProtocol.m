@@ -372,7 +372,7 @@ static RNCacheListStore *_cacheListStore = nil;
             [cache setResponse:response];
             [cache setFilePath:[[self class] cacheDataPathForRequest:[self request]]];
             [cache setRedirectRequest:redirectableRequest];
-            [[[self class] cacheListStore] setObject:@[[NSDate date], [self response].MIMEType, [cache filePath]] forKey:cachePath];
+            [[[self class] cacheListStore] setObject:@[[NSDate date], response.MIMEType, [cache filePath]] forKey:cachePath];
             
             [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
         }
