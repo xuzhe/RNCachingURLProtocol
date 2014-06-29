@@ -192,6 +192,18 @@ static RNCacheListStore *_cacheListStore = nil;
     }
 }
 
++ (void)removeCacheOfURLStr:(NSString *)URLStr {
+    NSString *keyPath = [self cachePathForURLStr:URLStr];
+    [[self cacheListStore] removeObjectForKey:keyPath];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    [fileManager removeItemAtPath:keyPath error:nil];
+    [fileManager removeItemAtPath:[self cacheDataPathForURLStr:URLStr] error:nil];
+}
+
++ (void)removeCacheOfURL:(NSURL *)URL {
+    [self removeCacheOfURLStr:[URL absoluteString]];
+}
+
 + (NSString *)RNCachingFolderPath {
     NSString *cachesPath = [NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject];
     return [cachesPath stringByAppendingPathComponent:RNCachingFolderName];
@@ -213,8 +225,8 @@ static RNCacheListStore *_cacheListStore = nil;
     return [self cacheDataPathForURL:[aRequest URL]];
 }
 
-+ (NSData *)dataForURL:(NSString *)url {
-    NSString *file = [self cachePathForKey:[url sha1]];
++ (NSData *)dataForURLStr:(NSString *)URLStr {
+    NSString *file = [self cachePathForKey:[URLStr sha1]];
     RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:file];
     if (cache) {
         return [NSData dataWithContentsOfFile:[cache filePath]];
@@ -223,16 +235,28 @@ static RNCacheListStore *_cacheListStore = nil;
     }
 }
 
++ (NSData *)dataForURL:(NSURL *)URL {
+    return [self dataForURLStr:[URL absoluteString]];
+}
+
 + (NSString *)cachePathForURL:(NSURL *)url {
-    return [self cachePathForKey:[[url absoluteString] sha1]];
+    return [self cachePathForURLStr:[url absoluteString]];
+}
+
++ (NSString *)cachePathForURLStr:(NSString *)URLStr {
+    return [self cachePathForKey:[URLStr sha1]];
+}
+
++ (NSString *)cacheDataPathForURLStr:(NSString *)URLStr {
+    NSString *cachePath = [URLStr sha1];
+    if ([[URLStr pathExtension] length] > 0) {
+        cachePath = [cachePath stringByAppendingPathExtension:[URLStr pathExtension]];
+    }
+    return [self cacheDataPathForKey:cachePath];
 }
 
 + (NSString *)cacheDataPathForURL:(NSURL *)url {
-    NSString *cachePath = [[url absoluteString] sha1];
-    if ([[url pathExtension] length] > 0) {
-        cachePath = [cachePath stringByAppendingPathExtension:[url pathExtension]];
-    }
-    return [self cacheDataPathForKey:cachePath];
+    return [self cacheDataPathForURLStr:[url absoluteString]];
 }
 
 + (NSString *)cachePathForRequest:(NSURLRequest *)aRequest {
@@ -635,7 +659,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 
 - (id)objectForKey:(id)key {
     __block id obj;
-    dispatch_sync(_queue, ^{
+    dispatch_barrier_sync(_queue, ^{
         obj = _dict[key];
     });
     return obj;
@@ -643,7 +667,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 
 - (NSArray *)removeObjectsOlderThan:(NSDate *)date userInfo:(NSMutableArray **)userInfoPtr {
     __block NSSet *keysToDelete;
-    dispatch_sync(_queue, ^{
+    dispatch_barrier_sync(_queue, ^{
         if (userInfoPtr) {
             *userInfoPtr = [NSMutableArray arrayWithCapacity:[_dict count]];
         }
@@ -658,15 +682,20 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
             }
             return NO;
         }];
-    });
-
-    dispatch_barrier_async(_queue, ^{
         [_dict removeObjectsForKeys:[keysToDelete allObjects]];
     });
 
     [self performSelector:@selector(saveAfterDelay)];
 
     return [keysToDelete allObjects];
+}
+
+- (void)removeObjectForKey:(id)aKey {
+    dispatch_barrier_sync(_queue, ^{
+        [_dict removeObjectForKey:aKey];
+    });
+    
+    [self performSelector:@selector(saveAfterDelay)];
 }
 
 - (void)clear {

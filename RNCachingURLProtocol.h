@@ -67,6 +67,7 @@
 - (void)setObject:(id)object forKey:(id)aKey;
 - (id)objectForKey:(id)aKey;
 - (NSArray *)removeObjectsOlderThan:(NSDate *)date userInfo:(NSMutableArray **)userInfoPtr;
+- (void)removeObjectForKey:(id)aKey;
 - (void)clear;
 @end
 
@@ -86,7 +87,10 @@
 + (void)setAlwaysUseCache:(BOOL)alwaysUseCache;
 + (void)removeCache;
 + (void)removeCacheOlderThan:(NSDate *)date;
-+ (NSData *)dataForURL:(NSString *)url;
++ (NSData *)dataForURLStr:(NSString *)URLStr;
++ (NSData *)dataForURL:(NSURL *)URL;
++ (void)removeCacheOfURLStr:(NSString *)URLStr;
++ (void)removeCacheOfURL:(NSURL *)URL;
 + (BOOL)isURLInclude:(NSString *)URLStr;
 + (BOOL)isURLInBlackList:(NSString *)URLStr;
 + (NSString *)cachePathForURL:(NSURL *)url;
