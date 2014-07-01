@@ -428,7 +428,7 @@ static RNCacheListStore *_cacheListStore = nil;
         RNCachedData *cache = [RNCachedData new];
         [cache setResponse:[self response]];
         [cache setFilePath:[[self class] cacheDataPathForRequest:[self request]]];
-        [[[self class] cacheListStore] setObject:@[[NSDate date], [self response].MIMEType, [cache filePath]] forKey:cachePath];
+        [[[self class] cacheListStore] setObject:@[[NSDate date], ([self response].MIMEType ? [self response].MIMEType : @""), [cache filePath]] forKey:cachePath];
         
         [NSKeyedArchiver archiveRootObject:cache toFile:cachePath];
         
