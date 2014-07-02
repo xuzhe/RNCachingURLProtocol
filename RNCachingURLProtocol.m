@@ -667,7 +667,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 
 - (id)objectForKey:(id)key {
     __block id obj;
-    dispatch_barrier_sync(_queue, ^{
+    dispatch_sync(_queue, ^{
         obj = _dict[key];
     });
     return obj;
@@ -675,7 +675,7 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
 
 - (NSArray *)removeObjectsOlderThan:(NSDate *)date userInfo:(NSMutableArray **)userInfoPtr {
     __block NSSet *keysToDelete;
-    dispatch_barrier_sync(_queue, ^{
+    dispatch_sync(_queue, ^{
         if (userInfoPtr) {
             *userInfoPtr = [NSMutableArray arrayWithCapacity:[_dict count]];
         }
@@ -690,6 +690,9 @@ static NSString *const kLastModifiedDateKey = @"lastModifiedDateKey";
             }
             return NO;
         }];
+    });
+
+    dispatch_barrier_async(_queue, ^{
         [_dict removeObjectsForKeys:[keysToDelete allObjects]];
     });
 
