@@ -89,6 +89,8 @@
 + (void)removeCacheOlderThan:(NSDate *)date;
 + (NSData *)dataForURLStr:(NSString *)URLStr;
 + (NSData *)dataForURL:(NSURL *)URL;
++ (BOOL)hasCacheForURL:(NSURL *)URL;
++ (BOOL)hasCacheForURLStr:(NSString *)URLStr;
 + (void)removeCacheOfURLStr:(NSString *)URLStr;
 + (void)removeCacheOfURL:(NSURL *)URL;
 + (BOOL)isURLInclude:(NSString *)URLStr;
