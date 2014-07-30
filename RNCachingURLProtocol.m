@@ -244,7 +244,7 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 + (BOOL)hasCacheForURLStr:(NSString *)URLStr {
-    return [[NSFileManager defaultManager] fileExistsAtPath:[self cachePathForKey:[URLStr sha1]] isDirectory:NO];
+    return [[NSFileManager defaultManager] fileExistsAtPath:[self cachePathForKey:[URLStr sha1]] isDirectory:nil];
 }
 
 + (NSString *)cachePathForURL:(NSURL *)url {
