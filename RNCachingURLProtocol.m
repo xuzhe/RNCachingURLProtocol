@@ -163,19 +163,6 @@ static RNCacheListStore *_cacheListStore = nil;
     _hostsBlackList = blacklist;
 }
 
-+ (BOOL)canInitWithRequest:(NSURLRequest *)request {
-    // only handle http requests we haven't marked with our header.
-    if ([[[request URL] scheme] isEqualToString:@"http"] &&
-            ([request valueForHTTPHeaderField:RNCachingURLHeader] == nil)) {
-        return YES;
-    }
-    return NO;
-}
-
-+ (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)request {
-    return request;
-}
-
 + (void)removeCache {
     [[self cacheListStore] clear];
     NSString *offlineCachePath = [self RNCachingFolderPath];
@@ -320,6 +307,19 @@ static RNCacheListStore *_cacheListStore = nil;
     }
 }
 
++ (BOOL)canInitWithRequest:(NSURLRequest *)request {
+    // only handle http requests we haven't marked with our header.
+    if ([[[request URL] scheme] isEqualToString:@"http"] &&
+        ([request valueForHTTPHeaderField:RNCachingURLHeader] == nil)) {
+        return YES;
+    }
+    return NO;
+}
+
++ (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)request {
+    return request;
+}
+
 - (void)startLoading {
     if ([self useCache]) {
         RNCachedData *cache = [NSKeyedUnarchiver unarchiveObjectWithFile:[[self class] cachePathForRequest:[self request]]];
@@ -443,8 +443,8 @@ static RNCacheListStore *_cacheListStore = nil;
         [self closeOutputStream:_outputStream];
     }
 
-    [self setConnection:nil];
-    [self setResponse:nil];
+    self.connection = nil;
+    self.response = nil;
 }
 
 - (BOOL)useCache {
