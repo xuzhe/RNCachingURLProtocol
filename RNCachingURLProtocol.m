@@ -309,7 +309,10 @@ static RNCacheListStore *_cacheListStore = nil;
 
 + (BOOL)canInitWithRequest:(NSURLRequest *)request {
     // only handle http requests we haven't marked with our header.
-    if ([[[request URL] scheme] isEqualToString:@"http"] &&
+    if (!([self isHostIncluded:request] && [[request HTTPMethod] isEqualToString:@"GET"])) {
+        return NO;
+    }
+    if ([[[[request URL] scheme] lowercaseString] isEqualToString:@"http"] &&
         ([request valueForHTTPHeaderField:RNCachingURLHeader] == nil)) {
         return YES;
     }
@@ -448,9 +451,10 @@ static RNCacheListStore *_cacheListStore = nil;
 }
 
 - (BOOL)useCache {
-    if (!([self isHostIncluded] && [[[self request] HTTPMethod] isEqualToString:@"GET"])) {
+    if (!([[self class] isHostIncluded:[self request]] && [[[self request] HTTPMethod] isEqualToString:@"GET"])) {
         return NO;
     }
+    _isURLInclude = YES;
     if (__alwaysUseCache) {
         return YES;
     }
@@ -510,8 +514,8 @@ static RNCacheListStore *_cacheListStore = nil;
     return [self isURLInclude:URLStr inArray:[self hostsBlackList]];
 }
 
-- (BOOL)isHostIncluded {
-    NSString *string = [[[self request] URL] absoluteString];
++ (BOOL)isHostIncluded:(NSURLRequest *)request {
+    NSString *string = [[request URL] absoluteString];
     BOOL isURLInclude = [RNCachingURLProtocol isURLInclude:string];
     if (isURLInclude) {
         NSLog(@"[RNCachingURLProtocol] include: %@", string);
@@ -527,7 +531,6 @@ static RNCacheListStore *_cacheListStore = nil;
     } else {
         NSLog(@"[RNCachingURLProtocol] NOT include: %@", string);
     }
-    _isURLInclude = isURLInclude;
     return isURLInclude;
 }
 
