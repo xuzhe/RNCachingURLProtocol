@@ -3,7 +3,7 @@
 //  Modernzine
 //
 //  Created by Rakuraku Jyo on 11/30/11.
-//  Copyright (c) 2011 Rakuraku Technologies, Inc. All rights reserved.
+//  Copyright (c) 2011 XUZHE.COM. All rights reserved.
 //
 
 
